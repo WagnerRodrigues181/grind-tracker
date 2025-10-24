@@ -4,6 +4,7 @@ import { LogOut, User } from 'lucide-react';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
 import WeeklyAreaChart from '../charts/WeeklyAreaChart';
+import HabitsTable from '../habits/HabitsTable';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
 export default function Dashboard() {
@@ -23,7 +24,6 @@ export default function Dashboard() {
   }
 
   function handleActivityAdded() {
-    // Trigger para atualizar lista
     setRefreshTrigger((prev) => prev + 1);
   }
 
@@ -59,15 +59,22 @@ export default function Dashboard() {
 
       {/* Conteúdo Principal */}
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Coluna Esquerda: Formulário */}
+        {/* Seção Superior: Formulário e Lista de Atividades */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div>
             <ActivityForm onActivityAdded={handleActivityAdded} />
           </div>
-
-          {/* Coluna Direita: Lista de Atividades */}
           <div>
             <ActivityList refreshTrigger={refreshTrigger} />
+          </div>
+        </div>
+
+        {/* Seção Inferior: Hábitos + Gráfico Semanal */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <HabitsTable />
+          </div>
+          <div>
             <WeeklyAreaChart />
           </div>
         </div>
