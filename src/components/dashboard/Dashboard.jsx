@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
+import WeeklyAreaChart from '../charts/WeeklyAreaChart';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
 export default function Dashboard() {
@@ -67,6 +68,7 @@ export default function Dashboard() {
           {/* Coluna Direita: Lista de Atividades */}
           <div>
             <ActivityList refreshTrigger={refreshTrigger} />
+            <WeeklyAreaChart />
           </div>
         </div>
       </main>
