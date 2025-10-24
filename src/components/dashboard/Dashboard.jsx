@@ -68,7 +68,7 @@ export default function Dashboard() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-400 font-bold">○</span>
-              <span>Tabela de hábitos semanais</span>
+              <span>Tabela de hábitos semanais </span>
             </li>
           </ul>
         </div>
