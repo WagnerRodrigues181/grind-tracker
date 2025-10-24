@@ -1,8 +1,13 @@
+import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
+import ActivityForm from '../activities/ActivityForm';
+import ActivityList from '../activities/ActivityList';
+import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
 export default function Dashboard() {
   const { currentUser, logout } = useAuth();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Extrair nome do usuário do email
   const userName = currentUser?.email?.split('@')[0] || 'Usuário';
@@ -14,6 +19,11 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
+  }
+
+  function handleActivityAdded() {
+    // Trigger para atualizar lista
+    setRefreshTrigger((prev) => prev + 1);
   }
 
   return (
@@ -28,7 +38,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Grind Tracker</h1>
-                <p className="text-sm text-gray-500">Wagner & Marlon - Dashboard</p>
+                <p className="text-sm text-gray-500">{formatDateDisplay(getToday())}</p>
               </div>
             </div>
 
@@ -48,29 +58,16 @@ export default function Dashboard() {
 
       {/* Conteúdo Principal */}
       <main className="container mx-auto px-4 py-8">
-        <div className="card">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Bem-vindo, {displayName}! 👋</h2>
-          <p className="text-gray-600 mb-6">
-            Sistema de login funcionando perfeitamente! Próximos passos:
-          </p>
-          <ul className="space-y-2 text-gray-700">
-            <li className="flex items-start gap-2">
-              <span className="text-green-500 font-bold">✓</span>
-              <span>Login e autenticação implementados</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-primary-500 font-bold">→</span>
-              <span>Próximo: Adicionar atividades diárias</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 font-bold">○</span>
-              <span>Gráficos de produtividade</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 font-bold">○</span>
-              <span>Tabela de hábitos semanais </span>
-            </li>
-          </ul>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Coluna Esquerda: Formulário */}
+          <div>
+            <ActivityForm onActivityAdded={handleActivityAdded} />
+          </div>
+
+          {/* Coluna Direita: Lista de Atividades */}
+          <div>
+            <ActivityList refreshTrigger={refreshTrigger} />
+          </div>
         </div>
       </main>
     </div>
