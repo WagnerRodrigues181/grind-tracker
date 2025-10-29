@@ -58,7 +58,7 @@ export default function Dashboard() {
       </header>
 
       {/* Conteúdo Principal */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-[1600px]">
         {/* Seção Superior: Formulário e Lista de Atividades */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div>
@@ -70,11 +70,11 @@ export default function Dashboard() {
         </div>
 
         {/* Seção Inferior: Hábitos + Gráfico Semanal */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
+        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6">
+          <div className="w-full">
             <HabitsTable />
           </div>
-          <div>
+          <div className="w-full">
             <WeeklyAreaChart />
           </div>
         </div>
