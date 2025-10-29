@@ -4,6 +4,7 @@ import { LogOut, User } from 'lucide-react';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
 import WeeklyAreaChart from '../charts/WeeklyAreaChart';
+import ProductivityDashboard from '../ProductivityDashboard';
 import HabitsTable from '../habits/HabitsTable';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
@@ -72,10 +73,7 @@ export default function Dashboard() {
         {/* Seção Inferior: Hábitos + Gráfico Semanal */}
         <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6">
           <div className="w-full">
-            <HabitsTable />
-          </div>
-          <div className="w-full">
-            <WeeklyAreaChart />
+            <ProductivityDashboard />
           </div>
         </div>
       </main>

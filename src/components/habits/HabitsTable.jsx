@@ -7,7 +7,33 @@ import {
   removeHabit,
   getMonthTracking,
   toggleHabitDay,
+  getHabitDuration,
 } from '../../services/habitsService';
+import { db } from '../../services/firebase';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+  deleteDoc,
+  doc,
+} from 'firebase/firestore';
+import { timeToMinutes } from '../../utils/dateHelpers';
+
+// Atividades pré-definidas (mesmo do ActivityForm)
+const PREDEFINED_ACTIVITIES = [
+  { name: 'Musculação', duration: '01:00' },
+  { name: 'CrossFit', duration: '01:00' },
+  { name: 'Estudo', duration: '04:00' },
+  { name: 'Pesquisa', duration: '02:00' },
+  { name: 'Rosário (Terço)', duration: '00:20' },
+  { name: 'Journaling', duration: '00:30' },
+  { name: 'Leitura', duration: '00:30' },
+  { name: 'Meditação', duration: '00:15' },
+  { name: 'Corrida', duration: '00:45' },
+];
 
 export default function HabitsTable() {
   const { currentUser } = useAuth();
@@ -19,7 +45,9 @@ export default function HabitsTable() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newHabitName, setNewHabitName] = useState('');
+  const [newHabitDuration, setNewHabitDuration] = useState('');
   const [error, setError] = useState('');
+  const [showPredefinedSelect, setShowPredefinedSelect] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1; // 1-12
@@ -33,10 +61,8 @@ export default function HabitsTable() {
 
     setLoading(true);
     try {
-      // Calcular meses vizinhos
       const { prevYear, prevMonth, nextYear, nextMonth } = getAdjacentMonths(year, month);
 
-      // Carregar dados em paralelo
       const [habitsData, currentTracking, prevTracking, nextTracking] = await Promise.all([
         getUserHabits(currentUser.uid),
         getMonthTracking(currentUser.uid, year, month),
@@ -63,16 +89,40 @@ export default function HabitsTable() {
     setCurrentDate(new Date(year, month, 1));
   }
 
+  async function handleAddHabitFromPredefined(predefinedActivity) {
+    try {
+      await addHabit(currentUser.uid, predefinedActivity.name, predefinedActivity.duration);
+      setShowPredefinedSelect(false);
+      setShowAddModal(false);
+      await loadData();
+    } catch (error) {
+      setError(error.message);
+    }
+  }
+
   async function handleAddHabit() {
     if (!newHabitName.trim()) {
       setError('Digite um nome para o hábito');
       return;
     }
 
+    if (!newHabitDuration.trim()) {
+      setError('Digite uma duração padrão (ex: 01:30)');
+      return;
+    }
+
+    const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
+    if (!timeRegex.test(newHabitDuration)) {
+      setError('Formato de tempo inválido. Use HH:MM (ex: 01:30)');
+      return;
+    }
+
     try {
-      await addHabit(currentUser.uid, newHabitName.trim());
+      await addHabit(currentUser.uid, newHabitName.trim(), newHabitDuration.trim());
       setNewHabitName('');
+      setNewHabitDuration('');
       setShowAddModal(false);
+      setShowPredefinedSelect(false);
       setError('');
       await loadData();
     } catch (error) {
@@ -107,14 +157,81 @@ export default function HabitsTable() {
 
       // Atualizar no servidor
       await toggleHabitDay(currentUser.uid, year, month, day, habitName);
+
+      if (!currentValue) {
+        // MARCANDO: registrar atividade
+        await registerHabitAsActivity(habitName, year, month, day);
+      } else {
+        // DESMARCANDO: remover atividade
+        await removeHabitActivity(habitName, year, month, day);
+      }
     } catch (error) {
       console.error('Erro ao toggle dia:', error);
-      // Reverter se der erro
       await loadData();
     }
   }
 
-  // Verificar se um dia está marcado
+  async function registerHabitAsActivity(habitName, year, month, day) {
+    try {
+      // Buscar duração padrão do hábito
+      const duration = await getHabitDuration(currentUser.uid, habitName);
+
+      if (!duration) {
+        console.warn(`Hábito "${habitName}" não tem duração definida`);
+        return;
+      }
+
+      // Converter duração para minutos
+      const minutes = timeToMinutes(duration);
+
+      // Formatar data no formato YYYY-MM-DD
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      // Adicionar no Firestore
+      await addDoc(collection(db, 'activities'), {
+        userId: currentUser.uid,
+        userEmail: currentUser.email,
+        activity: habitName,
+        minutes,
+        date: dateStr,
+        createdAt: serverTimestamp(),
+      });
+
+      console.log(`✅ Hábito "${habitName}" registrado como atividade em ${dateStr} (${duration})`);
+    } catch (error) {
+      console.error('Erro ao registrar hábito como atividade:', error);
+    }
+  }
+
+  async function removeHabitActivity(habitName, year, month, day) {
+    try {
+      // Formatar data no formato YYYY-MM-DD
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      // Buscar a atividade correspondente
+      const q = query(
+        collection(db, 'activities'),
+        where('userId', '==', currentUser.uid),
+        where('activity', '==', habitName),
+        where('date', '==', dateStr)
+      );
+
+      const snapshot = await getDocs(q);
+
+      // Deletar todas as atividades que correspondem (normalmente será apenas 1)
+      const deletePromises = [];
+      snapshot.forEach((docSnapshot) => {
+        deletePromises.push(deleteDoc(doc(db, 'activities', docSnapshot.id)));
+      });
+
+      await Promise.all(deletePromises);
+
+      console.log(`🗑️ Atividade "${habitName}" removida de ${dateStr}`);
+    } catch (error) {
+      console.error('Erro ao remover atividade do hábito:', error);
+    }
+  }
+
   function isChecked(habitName, cellData) {
     const dayKey = String(cellData.day).padStart(2, '0');
 
@@ -128,14 +245,12 @@ export default function HabitsTable() {
     return false;
   }
 
-  // Calcular % de conclusão por dia
   function getDayCompletion(cellData) {
     if (habits.length === 0) return 0;
     const completed = habits.filter((h) => isChecked(h, cellData)).length;
     return Math.round((completed / habits.length) * 100);
   }
 
-  // Gerar calendário do mês
   const calendar = generateCalendar(year, month);
 
   if (loading) {
@@ -183,7 +298,6 @@ export default function HabitsTable() {
       <div className="overflow-hidden">
         <table className="w-full text-[10px] border-collapse">
           <thead>
-            {/* Linha 1: Ano */}
             <tr className="bg-gray-50">
               <th className="sticky left-0 z-20 bg-gray-50 px-2 py-1 text-left font-semibold text-gray-700 border-r border-gray-300 w-20">
                 Hábitos
@@ -200,7 +314,6 @@ export default function HabitsTable() {
               <th className="sticky right-0 z-20 bg-gray-50 border-l border-gray-300 w-6"></th>
             </tr>
 
-            {/* Linha 2: Semanas */}
             <tr className="bg-gray-50">
               <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-300"></th>
               {calendar.weeks.map((_, idx) => (
@@ -215,7 +328,6 @@ export default function HabitsTable() {
               <th className="sticky right-0 z-20 bg-gray-50 border-l border-gray-300"></th>
             </tr>
 
-            {/* Linha 3: Dias da semana */}
             <tr className="bg-gray-100 border-b-2 border-gray-400">
               <th className="sticky left-0 z-20 bg-gray-100 border-r border-gray-300"></th>
               {calendar.weeks.map((week, weekIdx) =>
@@ -235,7 +347,6 @@ export default function HabitsTable() {
           </thead>
 
           <tbody>
-            {/* Linhas de Hábitos */}
             {habits.length === 0 ? (
               <tr>
                 <td
@@ -292,7 +403,6 @@ export default function HabitsTable() {
               ))
             )}
 
-            {/* Linha Completion % */}
             {habits.length > 0 && (
               <tr className="bg-gray-50 border-t-2 border-gray-400">
                 <td className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-[10px] font-semibold text-gray-700 border-r border-gray-300">
@@ -332,37 +442,99 @@ export default function HabitsTable() {
       {/* Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Adicionar Novo Hábito</h3>
+
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 {error}
               </div>
             )}
-            <input
-              type="text"
-              value={newHabitName}
-              onChange={(e) => setNewHabitName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddHabit()}
-              placeholder="Ex: Journal"
-              className="input-primary w-full mb-4"
-              autoFocus
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewHabitName('');
-                  setError('');
-                }}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-              <button onClick={handleAddHabit} className="btn-primary flex-1">
-                Adicionar
-              </button>
-            </div>
+
+            {!showPredefinedSelect ? (
+              <>
+                <button
+                  onClick={() => setShowPredefinedSelect(true)}
+                  className="w-full mb-4 p-3 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-lg transition-colors font-medium"
+                >
+                  📋 Escolher de Atividades Pré-definidas
+                </button>
+
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">ou</span>
+                  </div>
+                </div>
+
+                <input
+                  type="text"
+                  value={newHabitName}
+                  onChange={(e) => setNewHabitName(e.target.value)}
+                  placeholder="Nome do hábito"
+                  className="input-primary w-full mb-3"
+                />
+                <input
+                  type="text"
+                  value={newHabitDuration}
+                  onChange={(e) => setNewHabitDuration(e.target.value)}
+                  placeholder="Duração padrão (ex: 01:30)"
+                  className="input-primary w-full mb-4"
+                  maxLength={5}
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowAddModal(false);
+                      setNewHabitName('');
+                      setNewHabitDuration('');
+                      setError('');
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancelar
+                  </button>
+                  <button onClick={handleAddHabit} className="btn-primary flex-1">
+                    Adicionar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowPredefinedSelect(false)}
+                  className="mb-4 text-sm text-gray-600 hover:text-gray-900"
+                >
+                  ← Voltar
+                </button>
+
+                <div className="space-y-2">
+                  {PREDEFINED_ACTIVITIES.map((activity) => (
+                    <button
+                      key={activity.name}
+                      onClick={() => handleAddHabitFromPredefined(activity)}
+                      className="w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition-colors"
+                    >
+                      <div className="font-medium text-gray-900">{activity.name}</div>
+                      <div className="text-sm text-gray-500">Duração: {activity.duration}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setShowPredefinedSelect(false);
+                    setError('');
+                  }}
+                  className="btn-secondary w-full mt-4"
+                >
+                  Cancelar
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -407,9 +579,7 @@ function generateCalendar(year, month) {
   const endDayOfWeek = lastDay.getDay();
 
   const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
-  const { prevMonth, nextMonth } = getAdjacentMonths(year, month);
 
-  // Calcular número de semanas necessárias
   const totalCells = startDayOfWeek + daysInMonth + (6 - endDayOfWeek);
   const numWeeks = Math.ceil(totalCells / 7);
 
@@ -420,19 +590,16 @@ function generateCalendar(year, month) {
     const week = [];
     for (let d = 0; d < 7; d++) {
       if (dayCounter < 1) {
-        // Mês anterior
         week.push({
           day: daysInPrevMonth + dayCounter,
           belongsTo: 'prev',
         });
       } else if (dayCounter <= daysInMonth) {
-        // Mês atual
         week.push({
           day: dayCounter,
           belongsTo: 'current',
         });
       } else {
-        // Próximo mês
         week.push({
           day: dayCounter - daysInMonth,
           belongsTo: 'next',

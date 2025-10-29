@@ -26,18 +26,31 @@ export async function getUserHabits(userId) {
 }
 
 /**
- * Adiciona um novo hábito
+ * Adiciona um novo hábito com duração padrão
  */
-export async function addHabit(userId, habitName) {
+export async function addHabit(userId, habitName, duration = '01:00') {
   try {
     const configRef = doc(db, 'habits', userId, 'config', 'habitsList');
+    const durationsRef = doc(db, 'habits', userId, 'config', 'habitsDurations');
+
     const habits = await getUserHabits(userId);
 
     if (habits.includes(habitName)) {
       throw new Error('Hábito já existe');
     }
 
+    // Atualizar lista de hábitos
     await setDoc(configRef, { habits: [...habits, habitName] });
+
+    // Armazenar duração do hábito
+    const durationsSnap = await getDoc(durationsRef);
+    const currentDurations = durationsSnap.exists() ? durationsSnap.data() : {};
+
+    await setDoc(durationsRef, {
+      ...currentDurations,
+      [habitName]: duration,
+    });
+
     return true;
   } catch (error) {
     console.error('Erro ao adicionar hábito:', error);
@@ -51,14 +64,45 @@ export async function addHabit(userId, habitName) {
 export async function removeHabit(userId, habitName) {
   try {
     const configRef = doc(db, 'habits', userId, 'config', 'habitsList');
+    const durationsRef = doc(db, 'habits', userId, 'config', 'habitsDurations');
+
     const habits = await getUserHabits(userId);
 
     const updatedHabits = habits.filter((h) => h !== habitName);
     await setDoc(configRef, { habits: updatedHabits });
+
+    // Remover duração também
+    const durationsSnap = await getDoc(durationsRef);
+    if (durationsSnap.exists()) {
+      const currentDurations = durationsSnap.data();
+      delete currentDurations[habitName];
+      await setDoc(durationsRef, currentDurations);
+    }
+
     return true;
   } catch (error) {
     console.error('Erro ao remover hábito:', error);
     throw error;
+  }
+}
+
+/**
+ * Busca a duração padrão de um hábito
+ */
+export async function getHabitDuration(userId, habitName) {
+  try {
+    const durationsRef = doc(db, 'habits', userId, 'config', 'habitsDurations');
+    const durationsSnap = await getDoc(durationsRef);
+
+    if (durationsSnap.exists()) {
+      const durations = durationsSnap.data();
+      return durations[habitName] || '01:00'; // Retorna 1h como padrão
+    }
+
+    return '01:00';
+  } catch (error) {
+    console.error('Erro ao buscar duração do hábito:', error);
+    return '01:00';
   }
 }
 
