@@ -3,9 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
-import WeeklyAreaChart from '../charts/WeeklyAreaChart';
 import ProductivityDashboard from '../ProductivityDashboard';
-import HabitsTable from '../habits/HabitsTable';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
 export default function Dashboard() {
@@ -32,8 +30,8 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+        <div className="px-8 py-4">
+          <div className="flex items-center justify-between max-w-[1600px] mx-auto">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
                 <span className="text-xl">🔥</span>
@@ -59,19 +57,22 @@ export default function Dashboard() {
       </header>
 
       {/* Conteúdo Principal */}
-      <main className="container mx-auto px-4 py-8 max-w-[1600px]">
-        {/* Seção Superior: Formulário e Lista de Atividades */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <main className="w-full px-16 py-8">
+        {/* Seção Superior: Formulário + Lista de Atividades */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,400px),1fr] gap-8 mb-8 max-w-[1600px] mx-auto">
+          {/* Formulário ocupa até 400px */}
           <div>
             <ActivityForm onActivityAdded={handleActivityAdded} />
           </div>
+
+          {/* Lista de Atividades ocupa todo o espaço restante */}
           <div>
             <ActivityList refreshTrigger={refreshTrigger} />
           </div>
         </div>
 
-        {/* Seção Inferior: Hábitos + Gráfico Semanal */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6">
+        {/* Seção Inferior: Produtividade */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6 max-w-[1600px] mx-auto">
           <div className="w-full">
             <ProductivityDashboard />
           </div>

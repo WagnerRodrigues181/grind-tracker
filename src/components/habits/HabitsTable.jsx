@@ -406,7 +406,7 @@ export default function HabitsTable() {
             {habits.length > 0 && (
               <tr className="bg-gray-50 border-t-2 border-gray-400">
                 <td className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-[10px] font-semibold text-gray-700 border-r border-gray-300">
-                  Completion %
+                  Total %
                 </td>
                 {calendar.weeks.map((week, weekIdx) =>
                   week.map((cellData, dayIdx) => {
