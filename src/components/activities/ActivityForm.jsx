@@ -6,19 +6,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getToday, timeToMinutes } from '../../utils/dateHelpers';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const PREDEFINED_ACTIVITIES = [
-  'Musculação',
-  'CrossFit',
-  'Estudo',
-  'Pesquisa',
-  'Rosário (Terço)',
-  'Journaling',
-  'Leitura',
-  'Meditação',
-  'Corrida',
-  'Outra',
-];
-
 export default function ActivityForm({ onActivityAdded }) {
   const { currentUser } = useAuth();
   const [selectedActivity, setSelectedActivity] = useState('');
@@ -28,7 +15,6 @@ export default function ActivityForm({ onActivityAdded }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showMenu, setShowMenu] = useState(false);
-
   const [customActivities, setCustomActivities] = useState(
     JSON.parse(localStorage.getItem('customActivities') || '[]')
   );
@@ -43,19 +29,16 @@ export default function ActivityForm({ onActivityAdded }) {
     e.preventDefault();
     setError('');
     setSuccess('');
-
     const activityName = selectedActivity === 'Outra' ? customActivity : selectedActivity;
 
     if (!activityName) {
       setError('Selecione ou digite uma atividade');
       return;
     }
-
     if (!time) {
       setError('Informe o tempo gasto');
       return;
     }
-
     const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
     if (!timeRegex.test(time)) {
       setError('Formato de tempo inválido. Use HH:MM (ex: 01:30)');
@@ -64,9 +47,7 @@ export default function ActivityForm({ onActivityAdded }) {
 
     try {
       setLoading(true);
-
       const minutes = timeToMinutes(time);
-
       await addDoc(collection(db, 'activities'), {
         userId: currentUser.uid,
         userEmail: currentUser.email,
@@ -75,14 +56,11 @@ export default function ActivityForm({ onActivityAdded }) {
         date: getToday(),
         createdAt: serverTimestamp(),
       });
-
       setSuccess('✅ Atividade adicionada com sucesso!');
       setSelectedActivity('');
       setCustomActivity('');
       setTime('');
-
       if (onActivityAdded) onActivityAdded();
-
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error('Erro ao adicionar atividade:', err);
@@ -92,7 +70,6 @@ export default function ActivityForm({ onActivityAdded }) {
     }
   }
 
-  // Preenche tempo automaticamente se selecionar uma atividade custom
   function handleSelectActivity(value) {
     setSelectedActivity(value);
     const found = customActivities.find((a) => a.name === value);
@@ -102,11 +79,11 @@ export default function ActivityForm({ onActivityAdded }) {
   return (
     <div className="card relative">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-900">➕ Adicionar Atividade</h2>
+        <h2 className="text-xl font-bold text-primary-accent">➕ Adicionar Atividade</h2>
         <button
           type="button"
           onClick={() => setShowMenu(true)}
-          className="text-sm flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+          className="text-sm flex items-center gap-1 text-primary-accent/70 hover:text-primary-accent transition"
         >
           <Settings className="w-4 h-4" />
           Gerenciar
@@ -114,9 +91,8 @@ export default function ActivityForm({ onActivityAdded }) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Seletor de Atividade */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Atividade</label>
+          <label className="block text-sm font-medium text-primary-accent mb-1">Atividade</label>
           <select
             value={selectedActivity}
             onChange={(e) => handleSelectActivity(e.target.value)}
@@ -124,7 +100,7 @@ export default function ActivityForm({ onActivityAdded }) {
             disabled={loading}
           >
             <option value="">Selecione uma atividade</option>
-            {[...PREDEFINED_ACTIVITIES, ...customActivities.map((a) => a.name)].map((activity) => (
+            {[...customActivities.map((a) => a.name)].map((activity) => (
               <option key={activity} value={activity}>
                 {activity}
               </option>
@@ -132,10 +108,9 @@ export default function ActivityForm({ onActivityAdded }) {
           </select>
         </div>
 
-        {/* Input customizado (aparece se selecionar "Outra") */}
         {selectedActivity === 'Outra' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-primary-accent mb-1">
               Nome da Atividade
             </label>
             <input
@@ -149,9 +124,10 @@ export default function ActivityForm({ onActivityAdded }) {
           </div>
         )}
 
-        {/* Input de Tempo */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Tempo (HH:MM)</label>
+          <label className="block text-sm font-medium text-primary-accent mb-1">
+            Tempo (HH:MM)
+          </label>
           <input
             type="text"
             placeholder="01:30"
@@ -161,23 +137,23 @@ export default function ActivityForm({ onActivityAdded }) {
             disabled={loading}
             maxLength={5}
           />
-          <p className="text-xs text-gray-500 mt-1">Exemplo: 01:30 (1 hora e 30 minutos)</p>
+          <p className="text-xs text-primary-accent/60 mt-1">
+            Exemplo: 01:30 (1 hora e 30 minutos)
+          </p>
         </div>
 
-        {/* Mensagens */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-red-900/20 border border-red-700 text-red-400 px-4 py-3 rounded-lg text-sm">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-green-900/20 border border-green-700 text-green-400 px-4 py-3 rounded-lg text-sm">
             {success}
           </div>
         )}
 
-        {/* Botão Submit */}
         <button
           type="submit"
           disabled={loading}
@@ -197,7 +173,6 @@ export default function ActivityForm({ onActivityAdded }) {
         </button>
       </form>
 
-      {/* Menu animado de atividades custom */}
       <AnimatePresence>
         {showMenu && (
           <motion.div
@@ -205,35 +180,35 @@ export default function ActivityForm({ onActivityAdded }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 backdrop-blur-[2px]"
+            className="fixed inset-0 bg-primary-first/80 flex items-center justify-center z-50 backdrop-blur-[2px]"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md relative"
+              className="bg-primary-second rounded-2xl shadow-2xl p-6 w-full max-w-md relative text-primary-third border border-primary-accent"
             >
               <button
                 onClick={() => setShowMenu(false)}
-                className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+                className="absolute top-3 right-3 text-primary-accent/70 hover:text-primary-accent"
               >
                 ✕
               </button>
-
-              <h3 className="text-lg font-semibold mb-3">Atividades Pré-definidas</h3>
-
+              <h3 className="text-lg font-semibold mb-3 text-primary-accent">
+                Atividades Personalizadas
+              </h3>
               <div className="max-h-60 overflow-y-auto mb-4 space-y-2">
                 {customActivities.length === 0 ? (
-                  <p className="text-sm text-gray-500">Nenhuma atividade criada.</p>
+                  <p className="text-sm text-primary-accent/60">Nenhuma atividade criada.</p>
                 ) : (
                   customActivities.map((a, i) => (
                     <div
                       key={i}
-                      className="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-lg"
+                      className="flex justify-between items-center bg-primary-first px-3 py-2 rounded-lg"
                     >
                       <span>
-                        {a.name} — <span className="text-gray-500">{a.time}</span>
+                        {a.name} — <span className="text-primary-accent/60">{a.time}</span>
                       </span>
                       <button
                         onClick={() => {
@@ -241,7 +216,7 @@ export default function ActivityForm({ onActivityAdded }) {
                           setCustomActivities(updated);
                           localStorage.setItem('customActivities', JSON.stringify(updated));
                         }}
-                        className="text-xs text-red-600 hover:text-red-800"
+                        className="text-xs text-red-500 hover:text-red-400"
                       >
                         Remover
                       </button>
@@ -249,7 +224,6 @@ export default function ActivityForm({ onActivityAdded }) {
                   ))
                 )}
               </div>
-
               <form
                 onSubmit={(e) => {
                   e.preventDefault();

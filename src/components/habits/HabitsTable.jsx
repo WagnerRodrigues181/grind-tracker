@@ -22,7 +22,6 @@ import {
 } from 'firebase/firestore';
 import { timeToMinutes } from '../../utils/dateHelpers';
 
-// Atividades pré-definidas (mesmo do ActivityForm)
 const PREDEFINED_ACTIVITIES = [
   { name: 'Musculação', duration: '01:00' },
   { name: 'CrossFit', duration: '01:00' },
@@ -50,7 +49,7 @@ export default function HabitsTable() {
   const [showPredefinedSelect, setShowPredefinedSelect] = useState(false);
 
   const year = currentDate.getFullYear();
-  const month = currentDate.getMonth() + 1; // 1-12
+  const month = currentDate.getMonth() + 1;
 
   useEffect(() => {
     loadData();
@@ -146,7 +145,6 @@ export default function HabitsTable() {
       const dayKey = String(day).padStart(2, '0');
       const currentValue = currentMonthTracking[habitName]?.[dayKey] === true;
 
-      // Atualização otimista
       setCurrentMonthTracking((prev) => ({
         ...prev,
         [habitName]: {
@@ -155,14 +153,11 @@ export default function HabitsTable() {
         },
       }));
 
-      // Atualizar no servidor
       await toggleHabitDay(currentUser.uid, year, month, day, habitName);
 
       if (!currentValue) {
-        // MARCANDO: registrar atividade
         await registerHabitAsActivity(habitName, year, month, day);
       } else {
-        // DESMARCANDO: remover atividade
         await removeHabitActivity(habitName, year, month, day);
       }
     } catch (error) {
@@ -173,21 +168,12 @@ export default function HabitsTable() {
 
   async function registerHabitAsActivity(habitName, year, month, day) {
     try {
-      // Buscar duração padrão do hábito
       const duration = await getHabitDuration(currentUser.uid, habitName);
+      if (!duration) return;
 
-      if (!duration) {
-        console.warn(`Hábito "${habitName}" não tem duração definida`);
-        return;
-      }
-
-      // Converter duração para minutos
       const minutes = timeToMinutes(duration);
-
-      // Formatar data no formato YYYY-MM-DD
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-      // Adicionar no Firestore
       await addDoc(collection(db, 'activities'), {
         userId: currentUser.uid,
         userEmail: currentUser.email,
@@ -196,8 +182,6 @@ export default function HabitsTable() {
         date: dateStr,
         createdAt: serverTimestamp(),
       });
-
-      console.log(`✅ Hábito "${habitName}" registrado como atividade em ${dateStr} (${duration})`);
     } catch (error) {
       console.error('Erro ao registrar hábito como atividade:', error);
     }
@@ -205,10 +189,7 @@ export default function HabitsTable() {
 
   async function removeHabitActivity(habitName, year, month, day) {
     try {
-      // Formatar data no formato YYYY-MM-DD
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-      // Buscar a atividade correspondente
       const q = query(
         collection(db, 'activities'),
         where('userId', '==', currentUser.uid),
@@ -217,16 +198,8 @@ export default function HabitsTable() {
       );
 
       const snapshot = await getDocs(q);
-
-      // Deletar todas as atividades que correspondem (normalmente será apenas 1)
-      const deletePromises = [];
-      snapshot.forEach((docSnapshot) => {
-        deletePromises.push(deleteDoc(doc(db, 'activities', docSnapshot.id)));
-      });
-
+      const deletePromises = snapshot.docs.map((d) => deleteDoc(doc(db, 'activities', d.id)));
       await Promise.all(deletePromises);
-
-      console.log(`🗑️ Atividade "${habitName}" removida de ${dateStr}`);
     } catch (error) {
       console.error('Erro ao remover atividade do hábito:', error);
     }
@@ -234,14 +207,9 @@ export default function HabitsTable() {
 
   function isChecked(habitName, cellData) {
     const dayKey = String(cellData.day).padStart(2, '0');
-
-    if (cellData.belongsTo === 'current') {
-      return currentMonthTracking[habitName]?.[dayKey] === true;
-    } else if (cellData.belongsTo === 'prev') {
-      return prevMonthTracking[habitName]?.[dayKey] === true;
-    } else if (cellData.belongsTo === 'next') {
-      return nextMonthTracking[habitName]?.[dayKey] === true;
-    }
+    if (cellData.belongsTo === 'current') return currentMonthTracking[habitName]?.[dayKey] === true;
+    if (cellData.belongsTo === 'prev') return prevMonthTracking[habitName]?.[dayKey] === true;
+    if (cellData.belongsTo === 'next') return nextMonthTracking[habitName]?.[dayKey] === true;
     return false;
   }
 
@@ -255,37 +223,37 @@ export default function HabitsTable() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <div className="text-center text-gray-500">Carregando...</div>
+      <div className="card p-8">
+        <div className="text-center text-primary-accent">Carregando...</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="card overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-primary-accent">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Hábitos</h2>
+          <h2 className="text-lg font-bold text-primary-third">Hábitos</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={goToPreviousMonth}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              className="p-1 hover:bg-primary-second rounded transition-colors"
             >
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+              <ChevronLeft className="w-4 h-4 text-primary-accent" />
             </button>
-            <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
+            <span className="text-sm font-medium text-primary-accent min-w-[120px] text-center">
               {getMonthName(month)} {year}
             </span>
             <button
               onClick={goToNextMonth}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              className="p-1 hover:bg-primary-second rounded transition-colors"
             >
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+              <ChevronRight className="w-4 h-4 text-primary-accent" />
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="ml-2 p-1 hover:bg-primary-50 text-primary-600 rounded transition-colors"
+              className="ml-2 p-1 hover:bg-primary-second text-primary-third rounded transition-colors"
               title="Adicionar hábito"
             >
               <Plus className="w-5 h-5" />
@@ -298,51 +266,51 @@ export default function HabitsTable() {
       <div className="overflow-hidden">
         <table className="w-full text-[10px] border-collapse">
           <thead>
-            <tr className="bg-gray-50">
-              <th className="sticky left-0 z-20 bg-gray-50 px-2 py-1 text-left font-semibold text-gray-700 border-r border-gray-300 w-20">
+            <tr className="bg-primary-second">
+              <th className="sticky left-0 z-20 bg-primary-second px-2 py-1 text-left font-semibold text-primary-accent border-r border-primary-accent w-20">
                 Hábitos
               </th>
               {calendar.weeks.map((_, idx) => (
                 <th
                   key={idx}
                   colSpan={7}
-                  className="px-1 py-1 text-center font-semibold text-gray-700 border-l border-gray-300"
+                  className="px-1 py-1 text-center font-semibold text-primary-accent border-l border-primary-accent"
                 >
                   {year}
                 </th>
               ))}
-              <th className="sticky right-0 z-20 bg-gray-50 border-l border-gray-300 w-6"></th>
+              <th className="sticky right-0 z-20 bg-primary-second border-l border-primary-accent w-6"></th>
             </tr>
 
-            <tr className="bg-gray-50">
-              <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-300"></th>
+            <tr className="bg-primary-second">
+              <th className="sticky left-0 z-20 bg-primary-second border-r border-primary-accent"></th>
               {calendar.weeks.map((_, idx) => (
                 <th
                   key={idx}
                   colSpan={7}
-                  className="px-1 py-1 text-center text-[9px] font-medium text-gray-600 border-l border-gray-300"
+                  className="px-1 py-1 text-center text-[9px] font-medium text-primary-accent/80 border-l border-primary-accent"
                 >
                   Semana {idx + 1}
                 </th>
               ))}
-              <th className="sticky right-0 z-20 bg-gray-50 border-l border-gray-300"></th>
+              <th className="sticky right-0 z-20 bg-primary-second border-l border-primary-accent"></th>
             </tr>
 
-            <tr className="bg-gray-100 border-b-2 border-gray-400">
-              <th className="sticky left-0 z-20 bg-gray-100 border-r border-gray-300"></th>
+            <tr className="bg-primary-first border-b-2 border-primary-accent">
+              <th className="sticky left-0 z-20 bg-primary-first border-r border-primary-accent"></th>
               {calendar.weeks.map((week, weekIdx) =>
                 week.map((_, dayIdx) => (
                   <th
                     key={`${weekIdx}-${dayIdx}`}
-                    className={`px-0.5 py-1 text-center text-[9px] font-medium text-gray-600 ${
-                      dayIdx === 0 ? 'border-l border-gray-300' : ''
+                    className={`px-0.5 py-1 text-center text-[9px] font-medium text-primary-accent ${
+                      dayIdx === 0 ? 'border-l border-primary-accent' : ''
                     }`}
                   >
                     {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dayIdx]}
                   </th>
                 ))
               )}
-              <th className="sticky right-0 z-20 bg-gray-100 border-l border-gray-300"></th>
+              <th className="sticky right-0 z-20 bg-primary-first border-l border-primary-accent"></th>
             </tr>
           </thead>
 
@@ -351,15 +319,18 @@ export default function HabitsTable() {
               <tr>
                 <td
                   colSpan={calendar.weeks.length * 7 + 2}
-                  className="px-4 py-8 text-center text-gray-500 text-xs"
+                  className="px-4 py-8 text-center text-primary-accent/70 text-xs"
                 >
                   Nenhum hábito cadastrado
                 </td>
               </tr>
             ) : (
               habits.map((habit) => (
-                <tr key={habit} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-[10px] font-medium text-gray-900 border-r border-gray-300 truncate">
+                <tr
+                  key={habit}
+                  className="border-b border-primary-accent hover:bg-primary-second/30"
+                >
+                  <td className="sticky left-0 z-10 bg-primary-first px-2 py-1.5 text-[10px] font-medium text-primary-third border-r border-primary-accent truncate">
                     {habit}
                   </td>
                   {calendar.weeks.map((week, weekIdx) =>
@@ -370,7 +341,7 @@ export default function HabitsTable() {
                       return (
                         <td
                           key={`${weekIdx}-${dayIdx}`}
-                          className={`px-0.5 py-1.5 text-center ${dayIdx === 0 ? 'border-l border-gray-300' : ''}`}
+                          className={`px-0.5 py-1.5 text-center ${dayIdx === 0 ? 'border-l border-primary-accent' : ''}`}
                         >
                           <button
                             onClick={
@@ -383,18 +354,18 @@ export default function HabitsTable() {
                                   ? 'bg-green-400 border-2 border-green-500 shadow-sm'
                                   : 'bg-green-700 border-2 border-green-700'
                                 : isCurrent
-                                  ? 'bg-transparent border-2 border-gray-300 hover:border-gray-500'
-                                  : 'bg-gray-300 border-2 border-gray-300'
+                                  ? 'bg-transparent border-2 border-primary-accent hover:border-primary-third'
+                                  : 'bg-primary-first border-2 border-primary-first'
                             } ${!isCurrent ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                           />
                         </td>
                       );
                     })
                   )}
-                  <td className="sticky right-0 z-10 bg-white border-l border-gray-300">
+                  <td className="sticky right-0 z-10 bg-primary-first border-l border-primary-accent">
                     <button
                       onClick={() => handleRemoveHabit(habit)}
-                      className="p-0.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      className="p-0.5 text-red-500 hover:bg-red-50 rounded transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -404,8 +375,8 @@ export default function HabitsTable() {
             )}
 
             {habits.length > 0 && (
-              <tr className="bg-gray-50 border-t-2 border-gray-400">
-                <td className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-[10px] font-semibold text-gray-700 border-r border-gray-300">
+              <tr className="bg-primary-second border-t-2 border-primary-accent">
+                <td className="sticky left-0 z-10 bg-primary-second px-2 py-1.5 text-[10px] font-semibold text-primary-accent border-r border-primary-accent">
                   Total %
                 </td>
                 {calendar.weeks.map((week, weekIdx) =>
@@ -421,7 +392,7 @@ export default function HabitsTable() {
                     return (
                       <td
                         key={`${weekIdx}-${dayIdx}`}
-                        className={`px-0.5 py-1.5 text-center ${dayIdx === 0 ? 'border-l border-gray-300' : ''}`}
+                        className={`px-0.5 py-1.5 text-center ${dayIdx === 0 ? 'border-l border-primary-accent' : ''}`}
                       >
                         <div
                           className={`w-[1.2rem] h-[1.2rem] mx-auto flex items-center justify-center text-[8px] font-bold text-white ${colorClass} rounded`}
@@ -432,7 +403,7 @@ export default function HabitsTable() {
                     );
                   })
                 )}
-                <td className="sticky right-0 z-10 bg-gray-50 border-l border-gray-300"></td>
+                <td className="sticky right-0 z-10 bg-primary-second border-l border-primary-accent"></td>
               </tr>
             )}
           </tbody>
@@ -441,12 +412,12 @@ export default function HabitsTable() {
 
       {/* Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Adicionar Novo Hábito</h3>
+        <div className="fixed inset-0 bg-primary-first/80 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-primary-second rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto border border-primary-accent">
+            <h3 className="text-lg font-bold text-primary-third mb-4">Adicionar Novo Hábito</h3>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -455,17 +426,17 @@ export default function HabitsTable() {
               <>
                 <button
                   onClick={() => setShowPredefinedSelect(true)}
-                  className="w-full mb-4 p-3 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-lg transition-colors font-medium"
+                  className="w-full mb-4 p-3 bg-primary-first hover:bg-primary-second text-primary-third rounded-lg transition-colors font-medium border border-primary-accent"
                 >
-                  📋 Escolher de Atividades Pré-definidas
+                  Escolher de Atividades Pré-definidas
                 </button>
 
                 <div className="relative mb-4">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300"></div>
+                    <div className="w-full border-t border-primary-accent"></div>
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">ou</span>
+                    <span className="px-2 bg-primary-second text-primary-accent/70">ou</span>
                   </div>
                 </div>
 
@@ -474,14 +445,14 @@ export default function HabitsTable() {
                   value={newHabitName}
                   onChange={(e) => setNewHabitName(e.target.value)}
                   placeholder="Nome do hábito"
-                  className="input-primary w-full mb-3"
+                  className="input-field w-full mb-3"
                 />
                 <input
                   type="text"
                   value={newHabitDuration}
                   onChange={(e) => setNewHabitDuration(e.target.value)}
                   placeholder="Duração padrão (ex: 01:30)"
-                  className="input-primary w-full mb-4"
+                  className="input-field w-full mb-4"
                   maxLength={5}
                 />
                 <div className="flex gap-3">
@@ -505,7 +476,7 @@ export default function HabitsTable() {
               <>
                 <button
                   onClick={() => setShowPredefinedSelect(false)}
-                  className="mb-4 text-sm text-gray-600 hover:text-gray-900"
+                  className="mb-4 text-sm text-primary-accent/70 hover:text-primary-third"
                 >
                   ← Voltar
                 </button>
@@ -515,10 +486,12 @@ export default function HabitsTable() {
                     <button
                       key={activity.name}
                       onClick={() => handleAddHabitFromPredefined(activity)}
-                      className="w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition-colors"
+                      className="w-full p-3 bg-primary-first hover:bg-primary-second rounded-lg text-left transition-colors border border-primary-accent"
                     >
-                      <div className="font-medium text-gray-900">{activity.name}</div>
-                      <div className="text-sm text-gray-500">Duração: {activity.duration}</div>
+                      <div className="font-medium text-primary-third">{activity.name}</div>
+                      <div className="text-sm text-primary-accent/70">
+                        Duração: {activity.duration}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -567,7 +540,6 @@ function getAdjacentMonths(year, month) {
   const prevYear = month === 1 ? year - 1 : year;
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
-
   return { prevYear, prevMonth, nextYear, nextMonth };
 }
 
@@ -577,7 +549,6 @@ function generateCalendar(year, month) {
   const daysInMonth = lastDay.getDate();
   const startDayOfWeek = firstDay.getDay();
   const endDayOfWeek = lastDay.getDay();
-
   const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
 
   const totalCells = startDayOfWeek + daysInMonth + (6 - endDayOfWeek);
@@ -590,20 +561,11 @@ function generateCalendar(year, month) {
     const week = [];
     for (let d = 0; d < 7; d++) {
       if (dayCounter < 1) {
-        week.push({
-          day: daysInPrevMonth + dayCounter,
-          belongsTo: 'prev',
-        });
+        week.push({ day: daysInPrevMonth + dayCounter, belongsTo: 'prev' });
       } else if (dayCounter <= daysInMonth) {
-        week.push({
-          day: dayCounter,
-          belongsTo: 'current',
-        });
+        week.push({ day: dayCounter, belongsTo: 'current' });
       } else {
-        week.push({
-          day: dayCounter - daysInMonth,
-          belongsTo: 'next',
-        });
+        week.push({ day: dayCounter - daysInMonth, belongsTo: 'next' });
       }
       dayCounter++;
     }
