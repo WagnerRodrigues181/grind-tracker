@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Loader2, Settings } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -11,18 +11,34 @@ export default function ActivityForm({ onActivityAdded }) {
   const [selectedActivity, setSelectedActivity] = useState('');
   const [customActivity, setCustomActivity] = useState('');
   const [time, setTime] = useState('');
+  const [targetTime, setTargetTime] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showMenu, setShowMenu] = useState(false);
-  const [customActivities, setCustomActivities] = useState(
-    JSON.parse(localStorage.getItem('customActivities') || '[]')
-  );
+  const [customActivities, setCustomActivities] = useState([]);
 
-  function handleAddCustomActivity(name, time) {
-    const updated = [...customActivities, { name, time }];
+  // ESCUTA ATUALIZAÇÕES NO localStorage E EVENTO CUSTOMIZADO
+  useEffect(() => {
+    const handleUpdate = () => {
+      setCustomActivities(JSON.parse(localStorage.getItem('customActivities') || '[]'));
+    };
+
+    window.addEventListener('customActivitiesUpdated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    handleUpdate(); // inicial
+
+    return () => {
+      window.removeEventListener('customActivitiesUpdated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  function handleAddCustomActivity(name, time, target) {
+    const updated = [...customActivities, { name, time, target }];
     setCustomActivities(updated);
     localStorage.setItem('customActivities', JSON.stringify(updated));
+    window.dispatchEvent(new Event('customActivitiesUpdated'));
   }
 
   async function handleSubmit(e) {
@@ -48,18 +64,22 @@ export default function ActivityForm({ onActivityAdded }) {
     try {
       setLoading(true);
       const minutes = timeToMinutes(time);
+      const targetMinutes = targetTime ? timeToMinutes(targetTime) : null;
+
       await addDoc(collection(db, 'activities'), {
         userId: currentUser.uid,
         userEmail: currentUser.email,
         activity: activityName,
         minutes,
+        targetMinutes,
         date: getToday(),
         createdAt: serverTimestamp(),
       });
-      setSuccess('✅ Atividade adicionada com sucesso!');
+      setSuccess('Atividade adicionada com sucesso!');
       setSelectedActivity('');
       setCustomActivity('');
       setTime('');
+      setTargetTime('');
       if (onActivityAdded) onActivityAdded();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -73,13 +93,19 @@ export default function ActivityForm({ onActivityAdded }) {
   function handleSelectActivity(value) {
     setSelectedActivity(value);
     const found = customActivities.find((a) => a.name === value);
-    if (found) setTime(found.time);
+    if (found) {
+      setTime(found.time);
+      setTargetTime(found.target || '');
+    } else {
+      setTime('');
+      setTargetTime('');
+    }
   }
 
   return (
     <div className="card relative">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-primary-accent">➕ Adicionar Atividade</h2>
+        <h2 className="text-xl font-bold text-primary-accent">Adicionar Atividade</h2>
         <button
           type="button"
           onClick={() => setShowMenu(true)}
@@ -105,6 +131,7 @@ export default function ActivityForm({ onActivityAdded }) {
                 {activity}
               </option>
             ))}
+            <option value="Outra">Outra (personalizada)</option>
           </select>
         </div>
 
@@ -126,7 +153,7 @@ export default function ActivityForm({ onActivityAdded }) {
 
         <div>
           <label className="block text-sm font-medium text-primary-accent mb-1">
-            Tempo (HH:MM)
+            Tempo Gasto (HH:MM)
           </label>
           <input
             type="text"
@@ -140,6 +167,22 @@ export default function ActivityForm({ onActivityAdded }) {
           <p className="text-xs text-primary-accent/60 mt-1">
             Exemplo: 01:30 (1 hora e 30 minutos)
           </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-primary-accent mb-1">
+            Meta Diária (HH:MM)
+          </label>
+          <input
+            type="text"
+            placeholder="04:00"
+            value={targetTime}
+            onChange={(e) => setTargetTime(e.target.value)}
+            className="input-field"
+            disabled={loading}
+            maxLength={5}
+          />
+          <p className="text-xs text-primary-accent/60 mt-1">Ex: 04:00 para meta de 4 horas</p>
         </div>
 
         {error && (
@@ -209,12 +252,14 @@ export default function ActivityForm({ onActivityAdded }) {
                     >
                       <span>
                         {a.name} — <span className="text-primary-accent/60">{a.time}</span>
+                        {a.target && ` → ${a.target}`}
                       </span>
                       <button
                         onClick={() => {
                           const updated = customActivities.filter((_, idx) => idx !== i);
                           setCustomActivities(updated);
                           localStorage.setItem('customActivities', JSON.stringify(updated));
+                          window.dispatchEvent(new Event('customActivitiesUpdated'));
                         }}
                         className="text-xs text-red-500 hover:text-red-400"
                       >
@@ -229,14 +274,20 @@ export default function ActivityForm({ onActivityAdded }) {
                   e.preventDefault();
                   const name = e.target.name.value.trim();
                   const time = e.target.time.value.trim();
+                  const target = e.target.target.value.trim();
                   if (!name || !time) return;
-                  handleAddCustomActivity(name, time);
+                  handleAddCustomActivity(name, time, target);
                   e.target.reset();
                 }}
                 className="space-y-3"
               >
                 <input name="name" placeholder="Nome da atividade" className="input-field" />
                 <input name="time" placeholder="Tempo padrão (ex: 01:30)" className="input-field" />
+                <input
+                  name="target"
+                  placeholder="Meta diária (ex: 04:00)"
+                  className="input-field"
+                />
                 <button type="submit" className="btn-primary w-full">
                   Adicionar Atividade
                 </button>

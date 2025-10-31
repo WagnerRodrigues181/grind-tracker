@@ -21,18 +21,7 @@ import {
   doc,
 } from 'firebase/firestore';
 import { timeToMinutes } from '../../utils/dateHelpers';
-
-const PREDEFINED_ACTIVITIES = [
-  { name: 'Musculação', duration: '01:00' },
-  { name: 'CrossFit', duration: '01:00' },
-  { name: 'Estudo', duration: '04:00' },
-  { name: 'Pesquisa', duration: '02:00' },
-  { name: 'Rosário (Terço)', duration: '00:20' },
-  { name: 'Journaling', duration: '00:30' },
-  { name: 'Leitura', duration: '00:30' },
-  { name: 'Meditação', duration: '00:15' },
-  { name: 'Corrida', duration: '00:45' },
-];
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function HabitsTable() {
   const { currentUser } = useAuth();
@@ -45,11 +34,30 @@ export default function HabitsTable() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newHabitName, setNewHabitName] = useState('');
   const [newHabitDuration, setNewHabitDuration] = useState('');
+  const [newHabitTarget, setNewHabitTarget] = useState('');
   const [error, setError] = useState('');
   const [showPredefinedSelect, setShowPredefinedSelect] = useState(false);
+  const [availableActivities, setAvailableActivities] = useState([]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
+
+  // Carrega atividades do localStorage
+  useEffect(() => {
+    const loadActivities = () => {
+      const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
+      setAvailableActivities(customActivities);
+    };
+
+    loadActivities();
+    window.addEventListener('customActivitiesUpdated', loadActivities);
+    window.addEventListener('storage', loadActivities);
+
+    return () => {
+      window.removeEventListener('customActivitiesUpdated', loadActivities);
+      window.removeEventListener('storage', loadActivities);
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -88,12 +96,13 @@ export default function HabitsTable() {
     setCurrentDate(new Date(year, month, 1));
   }
 
-  async function handleAddHabitFromPredefined(predefinedActivity) {
+  async function handleAddHabitFromPredefined(activity) {
     try {
-      await addHabit(currentUser.uid, predefinedActivity.name, predefinedActivity.duration);
+      await addHabit(currentUser.uid, activity.name, activity.time);
       setShowPredefinedSelect(false);
       setShowAddModal(false);
       await loadData();
+      window.dispatchEvent(new Event('customActivitiesUpdated'));
     } catch (error) {
       setError(error.message);
     }
@@ -118,8 +127,21 @@ export default function HabitsTable() {
 
     try {
       await addHabit(currentUser.uid, newHabitName.trim(), newHabitDuration.trim());
+
+      const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
+      if (!customActivities.find((a) => a.name === newHabitName.trim())) {
+        customActivities.push({
+          name: newHabitName.trim(),
+          time: newHabitDuration.trim(),
+          target: newHabitTarget.trim() || null,
+        });
+        localStorage.setItem('customActivities', JSON.stringify(customActivities));
+        window.dispatchEvent(new Event('customActivitiesUpdated'));
+      }
+
       setNewHabitName('');
       setNewHabitDuration('');
+      setNewHabitTarget('');
       setShowAddModal(false);
       setShowPredefinedSelect(false);
       setError('');
@@ -174,11 +196,16 @@ export default function HabitsTable() {
       const minutes = timeToMinutes(duration);
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+      const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
+      const custom = customActivities.find((c) => c.name === habitName);
+      const targetMinutes = custom?.target ? timeToMinutes(custom.target) : null;
+
       await addDoc(collection(db, 'activities'), {
         userId: currentUser.uid,
         userEmail: currentUser.email,
         activity: habitName,
         minutes,
+        targetMinutes,
         date: dateStr,
         createdAt: serverTimestamp(),
       });
@@ -410,107 +437,131 @@ export default function HabitsTable() {
         </table>
       </div>
 
-      {/* Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-primary-first/80 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-primary-second rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto border border-primary-accent">
-            <h3 className="text-lg font-bold text-primary-third mb-4">Adicionar Novo Hábito</h3>
+      {/* MODAL COM ANIMAÇÃO */}
+      <AnimatePresence>
+        {showAddModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 bg-primary-first/80 flex items-center justify-center z-50 backdrop-blur-[2px]"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="bg-primary-second rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto border border-primary-accent"
+            >
+              <h3 className="text-lg font-bold text-primary-third mb-4">Adicionar Novo Hábito</h3>
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            {!showPredefinedSelect ? (
-              <>
-                <button
-                  onClick={() => setShowPredefinedSelect(true)}
-                  className="w-full mb-4 p-3 bg-primary-first hover:bg-primary-second text-primary-third rounded-lg transition-colors font-medium border border-primary-accent"
-                >
-                  Escolher de Atividades Pré-definidas
-                </button>
-
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-primary-accent"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-primary-second text-primary-accent/70">ou</span>
-                  </div>
+              {error && (
+                <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400 text-sm">
+                  {error}
                 </div>
+              )}
 
-                <input
-                  type="text"
-                  value={newHabitName}
-                  onChange={(e) => setNewHabitName(e.target.value)}
-                  placeholder="Nome do hábito"
-                  className="input-field w-full mb-3"
-                />
-                <input
-                  type="text"
-                  value={newHabitDuration}
-                  onChange={(e) => setNewHabitDuration(e.target.value)}
-                  placeholder="Duração padrão (ex: 01:30)"
-                  className="input-field w-full mb-4"
-                  maxLength={5}
-                />
-                <div className="flex gap-3">
+              {!showPredefinedSelect ? (
+                <>
+                  <button
+                    onClick={() => setShowPredefinedSelect(true)}
+                    className="w-full mb-4 p-3 bg-primary-first hover:bg-primary-second text-primary-third rounded-lg transition-colors font-medium border border-primary-accent"
+                  >
+                    Escolher de Atividades Pré-definidas
+                  </button>
+
+                  <div className="relative mb-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-primary-accent"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-primary-second text-primary-accent/70">ou</span>
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={newHabitName}
+                    onChange={(e) => setNewHabitName(e.target.value)}
+                    placeholder="Nome do hábito"
+                    className="input-field w-full mb-3"
+                  />
+                  <input
+                    type="text"
+                    value={newHabitDuration}
+                    onChange={(e) => setNewHabitDuration(e.target.value)}
+                    placeholder="Duração padrão (ex: 01:30)"
+                    className="input-field w-full mb-3"
+                    maxLength={5}
+                  />
+                  <input
+                    type="text"
+                    value={newHabitTarget}
+                    onChange={(e) => setNewHabitTarget(e.target.value)}
+                    placeholder="Meta diária (ex: 04:00) - opcional"
+                    className="input-field w-full mb-4"
+                    maxLength={5}
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setShowAddModal(false);
+                        setNewHabitName('');
+                        setNewHabitDuration('');
+                        setNewHabitTarget('');
+                        setError('');
+                      }}
+                      className="btn-secondary flex-1"
+                    >
+                      Cancelar
+                    </button>
+                    <button onClick={handleAddHabit} className="btn-primary flex-1">
+                      Adicionar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowPredefinedSelect(false)}
+                    className="mb-4 text-sm text-primary-accent/70 hover:text-primary-third"
+                  >
+                    ← Voltar
+                  </button>
+
+                  <div className="space-y-2">
+                    {availableActivities.map((activity) => (
+                      <button
+                        key={activity.name}
+                        onClick={() => handleAddHabitFromPredefined(activity)}
+                        className="w-full p-3 bg-primary-first hover:bg-primary-second rounded-lg text-left transition-colors border border-primary-accent"
+                      >
+                        <div className="font-medium text-primary-third">{activity.name}</div>
+                        <div className="text-sm text-primary-accent/70">
+                          Duração: {activity.time}
+                          {activity.target && ` → Meta: ${activity.target}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
                   <button
                     onClick={() => {
                       setShowAddModal(false);
-                      setNewHabitName('');
-                      setNewHabitDuration('');
+                      setShowPredefinedSelect(false);
                       setError('');
                     }}
-                    className="btn-secondary flex-1"
+                    className="btn-secondary w-full mt-4"
                   >
                     Cancelar
                   </button>
-                  <button onClick={handleAddHabit} className="btn-primary flex-1">
-                    Adicionar
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setShowPredefinedSelect(false)}
-                  className="mb-4 text-sm text-primary-accent/70 hover:text-primary-third"
-                >
-                  ← Voltar
-                </button>
-
-                <div className="space-y-2">
-                  {PREDEFINED_ACTIVITIES.map((activity) => (
-                    <button
-                      key={activity.name}
-                      onClick={() => handleAddHabitFromPredefined(activity)}
-                      className="w-full p-3 bg-primary-first hover:bg-primary-second rounded-lg text-left transition-colors border border-primary-accent"
-                    >
-                      <div className="font-medium text-primary-third">{activity.name}</div>
-                      <div className="text-sm text-primary-accent/70">
-                        Duração: {activity.duration}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setShowPredefinedSelect(false);
-                    setError('');
-                  }}
-                  className="btn-secondary w-full mt-4"
-                >
-                  Cancelar
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
