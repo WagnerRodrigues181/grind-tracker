@@ -3,7 +3,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
-import ProductivityDashboard from '../ProductivityDashboard';
+import WeeklyAreaChart from '../charts/WeeklyAreaChart';
+import HabitsTable from '../habits/HabitsTable';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
 export default function Dashboard() {
@@ -28,10 +29,10 @@ export default function Dashboard() {
     <div className="min-h-screen bg-primary-first">
       <header className="bg-primary-second shadow-sm border-b border-primary-accent">
         <div className="px-8 py-4">
-          <div className="flex items-center justify-between max-w-[1600px] mx-auto">
+          <div className="flex items-center justify-between max-w-[1800px] mx-auto">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-third rounded-full flex items-center justify-center">
-                <span className="text-xl">🔥</span>
+                <span className="text-xl">⚡</span>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-primary-accent">Grind Tracker</h1>
@@ -52,18 +53,26 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="w-full px-16 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,400px),1fr] gap-8 mb-8 max-w-[1600px] mx-auto">
-          <div>
-            <ActivityForm onActivityAdded={handleActivityAdded} />
-          </div>
-          <div>
-            <ActivityList refreshTrigger={refreshTrigger} />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6 max-w-[1600px] mx-auto">
+      <main className="w-full px-8 py-8">
+        <div className="max-w-[1800px] mx-auto space-y-8">
+          {/* GRÁFICO SEMANAL - DESTAQUE NO TOPO */}
           <div className="w-full">
-            <ProductivityDashboard />
+            <WeeklyAreaChart key={refreshTrigger} />
+          </div>
+
+          {/* FORMULÁRIO + TABELA DE HÁBITOS - LADO A LADO */}
+          <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
+            <div>
+              <ActivityForm onActivityAdded={handleActivityAdded} />
+            </div>
+            <div>
+              <HabitsTable onActivityAdded={handleActivityAdded} />
+            </div>
+          </div>
+
+          {/* LISTA DE ATIVIDADES - EMBAIXO, LARGURA TOTAL */}
+          <div className="w-full">
+            <ActivityList refreshTrigger={refreshTrigger} onRefresh={handleActivityAdded} />
           </div>
         </div>
       </main>

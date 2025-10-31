@@ -23,7 +23,7 @@ import {
 import { timeToMinutes } from '../../utils/dateHelpers';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function HabitsTable() {
+export default function HabitsTable({ onActivityAdded }) {
   const { currentUser } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [habits, setHabits] = useState([]);
@@ -167,6 +167,7 @@ export default function HabitsTable() {
       const dayKey = String(day).padStart(2, '0');
       const currentValue = currentMonthTracking[habitName]?.[dayKey] === true;
 
+      // Atualiza UI otimisticamente
       setCurrentMonthTracking((prev) => ({
         ...prev,
         [habitName]: {
@@ -175,15 +176,25 @@ export default function HabitsTable() {
         },
       }));
 
+      // Salva no Firestore
       await toggleHabitDay(currentUser.uid, year, month, day, habitName);
 
+      // Se está MARCANDO (de false para true), adiciona atividade
       if (!currentValue) {
+        console.log('✅ Marcando hábito:', habitName, 'dia:', day);
         await registerHabitAsActivity(habitName, year, month, day);
-      } else {
+      }
+      // Se está DESMARCANDO (de true para false), remove atividade
+      else {
+        console.log('❌ Desmarcando hábito:', habitName, 'dia:', day);
         await removeHabitActivity(habitName, year, month, day);
       }
+
+      // Notifica componente pai para atualizar gráficos
+      onActivityAdded?.();
     } catch (error) {
       console.error('Erro ao toggle dia:', error);
+      // Reverte mudança em caso de erro
       await loadData();
     }
   }
@@ -191,7 +202,10 @@ export default function HabitsTable() {
   async function registerHabitAsActivity(habitName, year, month, day) {
     try {
       const duration = await getHabitDuration(currentUser.uid, habitName);
-      if (!duration) return;
+      if (!duration) {
+        console.warn('Duração não encontrada para hábito:', habitName);
+        return;
+      }
 
       const minutes = timeToMinutes(duration);
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -199,6 +213,8 @@ export default function HabitsTable() {
       const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
       const custom = customActivities.find((c) => c.name === habitName);
       const targetMinutes = custom?.target ? timeToMinutes(custom.target) : null;
+
+      console.log('📝 Registrando atividade:', { habitName, dateStr, minutes, targetMinutes });
 
       await addDoc(collection(db, 'activities'), {
         userId: currentUser.uid,
@@ -209,14 +225,24 @@ export default function HabitsTable() {
         date: dateStr,
         createdAt: serverTimestamp(),
       });
+
+      console.log('✅ Atividade registrada com sucesso');
     } catch (error) {
-      console.error('Erro ao registrar hábito como atividade:', error);
+      console.error('❌ Erro ao registrar hábito como atividade:', error);
+      throw error;
     }
   }
 
   async function removeHabitActivity(habitName, year, month, day) {
     try {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      console.log('🔍 Buscando atividades para remover:', {
+        habitName,
+        dateStr,
+        userId: currentUser.uid,
+      });
+
       const q = query(
         collection(db, 'activities'),
         where('userId', '==', currentUser.uid),
@@ -225,10 +251,24 @@ export default function HabitsTable() {
       );
 
       const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map((d) => deleteDoc(doc(db, 'activities', d.id)));
+
+      console.log('📊 Atividades encontradas:', snapshot.size);
+
+      if (snapshot.empty) {
+        console.warn('⚠️ Nenhuma atividade encontrada para remover');
+        return;
+      }
+
+      const deletePromises = snapshot.docs.map((docSnapshot) => {
+        console.log('🗑️ Removendo documento:', docSnapshot.id);
+        return deleteDoc(doc(db, 'activities', docSnapshot.id));
+      });
+
       await Promise.all(deletePromises);
+      console.log('✅ Atividades removidas com sucesso');
     } catch (error) {
-      console.error('Erro ao remover atividade do hábito:', error);
+      console.error('❌ Erro ao remover atividade do hábito:', error);
+      throw error;
     }
   }
 
