@@ -4,8 +4,8 @@
 ---
 
 ## 🗿 **O que é o GrindTracker?**  
-Uma **app de tracking de hábitos** construído com **vibe de meme, mas com execução de titânio**.  
-Nascida da necessidade real de **eu (Wagner)** e do meu irmão de batalha **Marlon** de **disciplina** e pra **acompanhar o grind diário** com precisão cirúrgica.
+Um **app de tracking de hábitos** construído com **vibe de meme, mas com execução de titânio**.  
+Nascido da necessidade real que **eu (Wagner)** e do meu brother **Marlon** temos de **disciplina** e pra **acompanhar o grind diário**, organizando nosso tempo com precisão cirúrgica.
 
 > **"Se não tá no Firestore, não aconteceu."** – Giga Chad, provavelmente.
 
