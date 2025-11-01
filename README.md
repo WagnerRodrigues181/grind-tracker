@@ -75,8 +75,8 @@ E o **"based"** é o padrão.
 ### ✅ **FASE 7: Estilização Final** 🎨  
 - [x] Design system (cores primárias, espaçamentos)  
 - [x] Responsivo mobile  
-- [x] Animações sutis (sem exageros woke)  
-- [ ] Dark mode (em breve – quem precisa de luz?)
+- [x] Animações sutis  
+- [ ] Dark mode (em breve – quem precisa de escuridão?)
 
 ### 🚀 **FASE 8: Deploy**  
 - [ ] Build de produção  
