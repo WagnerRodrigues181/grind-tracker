@@ -1,7 +1,6 @@
 # GrindTracker 🗿💪  
 **"Claves Regni Catholicam Vel Mors – ou só mais um dia de grind."**
 
-
 ---
 
 ## 🗿 **O que é o GrindTracker?**  
