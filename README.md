@@ -1,10 +1,6 @@
 # GrindTracker 🗿💪  
 **"Claves Regni Catholicam Vel Mors – ou só mais um dia de grind."**
 
-<p align="center">
-  <img src="https://media.tenor.com/fgKJgk1SyeEAAAAC/giga-chad.gif" alt="Giga Chad" width="300"/>
-</p>
-
 
 ---
 
