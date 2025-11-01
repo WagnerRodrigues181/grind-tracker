@@ -102,16 +102,36 @@ export default function WeeklyAreaChart() {
   };
 
   if (loading)
-    return <div className="card text-center text-primary-accent">Carregando gráfico...</div>;
+    return (
+      <div className="card text-center text-primary-accent py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-accent mx-auto"></div>
+      </div>
+    );
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-primary-accent mb-1">📈 Produtividade Semanal</h2>
-          <p className="text-sm text-primary-accent">
-            {weekDates.start} - {weekDates.end}
-          </p>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-6">
+          <div>
+            <h2 className="text-2xl font-bold text-primary-accent mb-1">
+              📈 Produtividade Semanal
+            </h2>
+            <p className="text-sm text-primary-accent/70">
+              {weekDates.start} - {weekDates.end}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-2 bg-primary-third rounded-lg">
+            <TrendingUp className="w-6 h-6 text-primary-first" />
+            <div>
+              <p className="text-xs text-primary-first/80 font-medium">Total da Semana</p>
+              <p className="text-xl font-bold text-primary-first">
+                {totalHours}h{' '}
+                <span className="text-xs text-primary-accent ml-1">
+                  ({formatDuration(totalMinutes)})
+                </span>
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -132,37 +152,24 @@ export default function WeeklyAreaChart() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-6 px-4 py-3 bg-primary-third rounded-lg">
-        <TrendingUp className="w-5 h-5 text-primary-first" />
-        <div>
-          <p className="text-sm text-primary-first font-medium">Total da Semana</p>
-          <p className="text-2xl font-bold text-primary-first">
-            {totalHours}h{' '}
-            <span className="text-sm text-primary-accent ml-1">
-              ({formatDuration(totalMinutes)})
-            </span>
-          </p>
-        </div>
-      </div>
-
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <ResponsiveContainer width="100%" height={175}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#8b8b8b" stopOpacity={0.3} />
+              <stop offset="5%" stopColor="#8b8b8b" stopOpacity={0.4} />
               <stop offset="95%" stopColor="#8b8b8b" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#8b8b8b" />
-          <XAxis dataKey="day" stroke="#8b8b8b" style={{ fontSize: '14px' }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#8b8b8b" opacity={0.3} />
+          <XAxis dataKey="day" stroke="#8b8b8b" style={{ fontSize: '14px', fontWeight: '500' }} />
           <YAxis
             stroke="#8b8b8b"
-            style={{ fontSize: '14px' }}
+            style={{ fontSize: '13px' }}
             label={{
               value: 'Horas',
               angle: -90,
               position: 'insideLeft',
-              style: { fontSize: '14px', fill: '#8b8b8b' },
+              style: { fontSize: '13px', fill: '#8b8b8b', fontWeight: '500' },
             }}
           />
           <Tooltip content={<CustomTooltip />} />
@@ -177,9 +184,9 @@ export default function WeeklyAreaChart() {
         </AreaChart>
       </ResponsiveContainer>
 
-      <div className="mt-4 pt-4 border-t border-primary-accent">
+      <div className="mt-3 pt-3 border-t border-primary-accent">
         <p className="text-xs text-primary-accent text-center">
-          💪 Quanto mais alto, mais based fomos naquele dia!
+          💪 Quanto mais alto, mais produtivos fomos naquele dia!
         </p>
       </div>
     </div>

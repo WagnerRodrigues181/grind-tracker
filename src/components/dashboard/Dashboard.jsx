@@ -31,19 +31,25 @@ export default function Dashboard() {
         <div className="px-8 py-4">
           <div className="flex items-center justify-between max-w-[1800px] mx-auto">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-third rounded-full flex items-center justify-center">
-                <span className="text-xl">⚡</span>
-              </div>
+              {/* Ícone grande sem bolinha */}
+              <img
+                src="/favicon-96x96.png"
+                alt="Grind Tracker"
+                className="w-12 h-12 object-cover"
+              />
+
               <div>
                 <h1 className="text-xl font-bold text-primary-accent">Grind Tracker</h1>
                 <p className="text-sm text-primary-accent">{formatDateDisplay(getToday())}</p>
               </div>
             </div>
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-3 py-2 bg-primary-accent rounded-lg">
                 <User className="w-4 h-4 text-primary-second" />
                 <span className="text-sm font-medium text-primary-second">{displayName}</span>
               </div>
+
               <button onClick={handleLogout} className="btn-secondary flex items-center gap-2">
                 <LogOut className="w-4 h-4" />
                 Sair
@@ -60,6 +66,10 @@ export default function Dashboard() {
             <WeeklyAreaChart key={refreshTrigger} />
           </div>
 
+          <div className="w-full">
+            <ActivityList refreshTrigger={refreshTrigger} onRefresh={handleActivityAdded} />
+          </div>
+
           {/* FORMULÁRIO + TABELA DE HÁBITOS - LADO A LADO */}
           <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
             <div>
@@ -68,11 +78,6 @@ export default function Dashboard() {
             <div>
               <HabitsTable onActivityAdded={handleActivityAdded} />
             </div>
-          </div>
-
-          {/* LISTA DE ATIVIDADES - EMBAIXO, LARGURA TOTAL */}
-          <div className="w-full">
-            <ActivityList refreshTrigger={refreshTrigger} onRefresh={handleActivityAdded} />
           </div>
         </div>
       </main>
