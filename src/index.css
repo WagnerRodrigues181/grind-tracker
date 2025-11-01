@@ -2,26 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Base */
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-primary-first text-primary-third;
   }
 }
 
+/* Components */
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+    @apply bg-primary-second hover:bg-primary-first text-primary-third font-medium py-2 px-4 rounded-lg transition-colors;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors;
+    @apply bg-primary-first hover:bg-primary-second text-primary-third font-medium py-2 px-4 rounded-lg transition-colors;
   }
 
   .input-field {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none;
+    @apply w-full px-4 py-2 border border-primary-accent rounded-lg 
+    focus:ring-2 focus:ring-primary-third focus:border-transparent 
+    outline-none bg-primary-second text-primary-third placeholder-primary-accent;
   }
 
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+    @apply bg-primary-second rounded-xl shadow-sm border border-primary-accent p-6 text-primary-third;
   }
+}
+
+/* ANIMAÇÕES LÍQUIDAS */
+@keyframes wave {
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes drop {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(0%) translateY(150%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(50%) translateY(300%);
+    opacity: 0;
+  }
+}
+
+.animate-wave-slow {
+  animation: wave 3s ease-in-out infinite;
+}
+
+.animate-ripple {
+  animation: ripple 1.5s ease-in-out infinite;
+}
+
+.animate-ripple-delayed {
+  animation: ripple 1.5s ease-in-out 0.3s infinite;
+}
+
+.animate-drop {
+  animation: drop 2s ease-in-out infinite;
+}
+
+/* ANIMAÇÃO BREATHING LENTO */
+@keyframes breathing {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-breathing {
+  animation: breathing 4s ease-in-out infinite;
+}
+
+.animate-breathing-delayed {
+  animation: breathing 4s ease-in-out 1.2s infinite;
 }
