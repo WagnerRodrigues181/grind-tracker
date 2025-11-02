@@ -5,6 +5,7 @@ import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
 import WeeklyAreaChart from '../charts/WeeklyAreaChart';
 import HabitsTable from '../habits/HabitsTable';
+import Footer from '../Footer';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
 
 export default function Dashboard() {
@@ -81,6 +82,7 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
