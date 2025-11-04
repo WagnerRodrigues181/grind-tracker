@@ -1,63 +1,39 @@
 import { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, User } from 'lucide-react';
+import Header from '../header/Header';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
 import WeeklyAreaChart from '../charts/WeeklyAreaChart';
 import HabitsTable from '../habits/HabitsTable';
-import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
+import Footer from '../Footer';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Dashboard() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const userName = currentUser?.email?.split('@')[0] || 'Usuário';
-  const displayName = userName.charAt(0).toUpperCase() + userName.slice(1).toLowerCase();
 
-  async function handleLogout() {
+  async function handleActivityAdded(activityName) {
+    if (!currentUser?.uid) return;
+
     try {
-      await logout();
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      await addDoc(collection(db, 'activities'), {
+        userId: currentUser.uid,
+        userEmail: currentUser.email,
+        activity: activityName,
+        minutes: 30, // padrão: 30min por hábito marcado
+        date: new Date().toISOString().split('T')[0], // YYYY-MM-DD (hoje)
+        createdAt: serverTimestamp(),
+      });
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error('Erro ao registrar atividade:', err);
     }
-  }
-
-  function handleActivityAdded() {
-    setRefreshTrigger((prev) => prev + 1);
   }
 
   return (
     <div className="min-h-screen bg-primary-first">
-      <header className="bg-primary-second shadow-sm border-b border-primary-accent">
-        <div className="px-8 py-4">
-          <div className="flex items-center justify-between max-w-[1800px] mx-auto">
-            <div className="flex items-center gap-3">
-              {/* Ícone grande sem bolinha */}
-              <img
-                src="/favicon-96x96.png"
-                alt="Grind Tracker"
-                className="w-12 h-12 object-cover"
-              />
-
-              <div>
-                <h1 className="text-xl font-bold text-primary-accent">Grind Tracker</h1>
-                <p className="text-sm text-primary-accent">{formatDateDisplay(getToday())}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-2 bg-primary-accent rounded-lg">
-                <User className="w-4 h-4 text-primary-second" />
-                <span className="text-sm font-medium text-primary-second">{displayName}</span>
-              </div>
-
-              <button onClick={handleLogout} className="btn-secondary flex items-center gap-2">
-                <LogOut className="w-4 h-4" />
-                Sair
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="w-full px-8 py-8">
         <div className="max-w-[1800px] mx-auto space-y-8">
@@ -81,6 +57,8 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }

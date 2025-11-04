@@ -18,7 +18,6 @@ export default function ActivityForm({ onActivityAdded }) {
   const [showMenu, setShowMenu] = useState(false);
   const [customActivities, setCustomActivities] = useState([]);
 
-  // ESCUTA ATUALIZAÇÕES NO localStorage E EVENTO CUSTOMIZADO
   useEffect(() => {
     const handleUpdate = () => {
       setCustomActivities(JSON.parse(localStorage.getItem('customActivities') || '[]'));
@@ -26,7 +25,7 @@ export default function ActivityForm({ onActivityAdded }) {
 
     window.addEventListener('customActivitiesUpdated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
-    handleUpdate(); // inicial
+    handleUpdate();
 
     return () => {
       window.removeEventListener('customActivitiesUpdated', handleUpdate);
@@ -103,199 +102,240 @@ export default function ActivityForm({ onActivityAdded }) {
   }
 
   return (
-    <div className="card relative">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-primary-accent">Adicionar Atividade</h2>
-        <button
-          type="button"
-          onClick={() => setShowMenu(true)}
-          className="text-sm flex items-center gap-1 text-primary-accent/70 hover:text-primary-accent transition"
-        >
-          <Settings className="w-4 h-4" />
-          Gerenciar
-        </button>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Inter:wght@400;500;600;700&display=swap');
+        .font-cinzel { font-family: 'Cinzel Decorative', serif; }
+        .font-inter { font-family: 'Inter', sans-serif; }
+        .btn-hover-scale {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-hover-scale:hover {
+          transform: scale(1.05);
+          box-shadow: 0 8px 24px rgba(139, 139, 139, 0.3);
+        }
+      `}</style>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-primary-accent mb-1">Atividade</label>
-          <select
-            value={selectedActivity}
-            onChange={(e) => handleSelectActivity(e.target.value)}
-            className="input-field"
-            disabled={loading}
+      <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20">
+        <div className="flex justify-between items-center mb-6">
+          <h2
+            className="text-2xl font-bold text-[#8b8b8b] font-cinzel"
+            style={{
+              textShadow: '0 0 20px rgba(139, 139, 139, 0.5), 0 0 40px rgba(139, 139, 139, 0.3)',
+            }}
           >
-            <option value="">Selecione uma atividade</option>
-            {[...customActivities.map((a) => a.name)].map((activity) => (
-              <option key={activity} value={activity}>
-                {activity}
-              </option>
-            ))}
-            <option value="Outra">Outra (personalizada)</option>
-          </select>
+            Adicionar Atividade
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowMenu(true)}
+            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition"
+          >
+            <Settings className="w-4 h-4" />
+            Gerenciar
+          </button>
         </div>
 
-        {selectedActivity === 'Outra' && (
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-primary-accent mb-1">
-              Nome da Atividade
+            <label className="block text-sm font-medium text-[#8b8b8b] mb-1">Atividade</label>
+            <select
+              value={selectedActivity}
+              onChange={(e) => handleSelectActivity(e.target.value)}
+              className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
+              disabled={loading}
+            >
+              <option value="">Selecione uma atividade</option>
+              {customActivities.map((a) => (
+                <option key={a.name} value={a.name}>
+                  {a.name}
+                </option>
+              ))}
+              <option value="Outra">Outra (personalizada)</option>
+            </select>
+          </div>
+
+          {selectedActivity === 'Outra' && (
+            <div>
+              <label className="block text-sm font-medium text-[#8b8b8b] mb-1">
+                Nome da Atividade
+              </label>
+              <input
+                type="text"
+                placeholder="Digite o nome da atividade"
+                value={customActivity}
+                onChange={(e) => setCustomActivity(e.target.value)}
+                className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
+                disabled={loading}
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-[#8b8b8b] mb-1">
+              Tempo Gasto (HH:MM)
             </label>
             <input
               type="text"
-              placeholder="Digite o nome da atividade"
-              value={customActivity}
-              onChange={(e) => setCustomActivity(e.target.value)}
-              className="input-field"
+              placeholder="01:30"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
               disabled={loading}
+              maxLength={5}
             />
+            <p className="text-xs text-[#8b8b8b]/60 mt-1">Exemplo: 01:30 (1 hora e 30 minutos)</p>
           </div>
-        )}
 
-        <div>
-          <label className="block text-sm font-medium text-primary-accent mb-1">
-            Tempo Gasto (HH:MM)
-          </label>
-          <input
-            type="text"
-            placeholder="01:30"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="input-field"
-            disabled={loading}
-            maxLength={5}
-          />
-          <p className="text-xs text-primary-accent/60 mt-1">
-            Exemplo: 01:30 (1 hora e 30 minutos)
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-primary-accent mb-1">
-            Meta Diária (HH:MM)
-          </label>
-          <input
-            type="text"
-            placeholder="04:00"
-            value={targetTime}
-            onChange={(e) => setTargetTime(e.target.value)}
-            className="input-field"
-            disabled={loading}
-            maxLength={5}
-          />
-          <p className="text-xs text-primary-accent/60 mt-1">Ex: 04:00 para meta de 4 horas</p>
-        </div>
-
-        {error && (
-          <div className="bg-red-900/20 border border-red-700 text-red-400 px-4 py-3 rounded-lg text-sm">
-            {error}
+          <div>
+            <label className="block text-sm font-medium text-[#8b8b8b] mb-1">
+              Meta Diária (HH:MM)
+            </label>
+            <input
+              type="text"
+              placeholder="04:00"
+              value={targetTime}
+              onChange={(e) => setTargetTime(e.target.value)}
+              className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
+              disabled={loading}
+              maxLength={5}
+            />
+            <p className="text-xs text-[#8b8b8b]/60 mt-1">Ex: 04:00 para meta de 4 horas</p>
           </div>
-        )}
 
-        {success && (
-          <div className="bg-green-900/20 border border-green-700 text-green-400 px-4 py-3 rounded-lg text-sm">
-            {success}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn-primary w-full flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Adicionando...
-            </>
-          ) : (
-            <>
-              <Plus className="w-5 h-5" />
-              Adicionar Atividade
-            </>
+          {error && (
+            <div className="p-4 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
+              {error}
+            </div>
           )}
-        </button>
-      </form>
 
-      <AnimatePresence>
-        {showMenu && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 bg-primary-first/80 flex items-center justify-center z-50 backdrop-blur-[2px]"
+          {success && (
+            <div className="p-4 bg-green-900/30 border border-green-600/50 rounded-xl text-green-300 text-sm">
+              {success}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40 btn-hover-scale flex items-center justify-center gap-2"
           >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Adicionando...
+              </>
+            ) : (
+              <>
+                <Plus className="w-5 h-5" />
+                Adicionar Atividade
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* MODAL DE GERENCIAR COM MESMA ESTÉTICA DO HABITSTABLE */}
+        <AnimatePresence>
+          {showMenu && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="bg-primary-second rounded-2xl shadow-2xl p-6 w-full max-w-md relative text-primary-third border border-primary-accent"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-[2px] flex items-center justify-center z-50 p-4"
             >
-              <button
-                onClick={() => setShowMenu(false)}
-                className="absolute top-3 right-3 text-primary-accent/70 hover:text-primary-accent"
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl p-8 w-full max-w-md border-2 border-[#8b8b8b]/30 relative"
               >
-                ✕
-              </button>
-              <h3 className="text-lg font-semibold mb-3 text-primary-accent">
-                Atividades Personalizadas
-              </h3>
-              <div className="max-h-60 overflow-y-auto mb-4 space-y-2">
-                {customActivities.length === 0 ? (
-                  <p className="text-sm text-primary-accent/60">Nenhuma atividade criada.</p>
-                ) : (
-                  customActivities.map((a, i) => (
-                    <div
-                      key={i}
-                      className="flex justify-between items-center bg-primary-first px-3 py-2 rounded-lg"
-                    >
-                      <span>
-                        {a.name} — <span className="text-primary-accent/60">{a.time}</span>
-                        {a.target && ` → ${a.target}`}
-                      </span>
-                      <button
-                        onClick={() => {
-                          const updated = customActivities.filter((_, idx) => idx !== i);
-                          setCustomActivities(updated);
-                          localStorage.setItem('customActivities', JSON.stringify(updated));
-                          window.dispatchEvent(new Event('customActivitiesUpdated'));
-                        }}
-                        className="text-xs text-red-500 hover:text-red-400"
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const name = e.target.name.value.trim();
-                  const time = e.target.time.value.trim();
-                  const target = e.target.target.value.trim();
-                  if (!name || !time) return;
-                  handleAddCustomActivity(name, time, target);
-                  e.target.reset();
-                }}
-                className="space-y-3"
-              >
-                <input name="name" placeholder="Nome da atividade" className="input-field" />
-                <input name="time" placeholder="Tempo padrão (ex: 01:30)" className="input-field" />
-                <input
-                  name="target"
-                  placeholder="Meta diária (ex: 04:00)"
-                  className="input-field"
-                />
-                <button type="submit" className="btn-primary w-full">
-                  Adicionar Atividade
+                <button
+                  onClick={() => setShowMenu(false)}
+                  className="absolute top-3 right-3 text-[#8b8b8b]/70 hover:text-[#8b8b8b] text-2xl"
+                >
+                  ✕
                 </button>
-              </form>
+                <h3
+                  className="text-xl font-bold text-[#8b8b8b] mb-6 font-cinzel"
+                  style={{
+                    textShadow: '0 0 15px rgba(139, 139, 139, 0.4)',
+                  }}
+                >
+                  Atividades Personalizadas
+                </h3>
+
+                <div className="max-h-60 overflow-y-auto mb-6 space-y-2">
+                  {customActivities.length === 0 ? (
+                    <p className="text-sm text-[#8b8b8b]/60 text-center py-4">
+                      Nenhuma atividade criada.
+                    </p>
+                  ) : (
+                    customActivities.map((a, i) => (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center bg-[#1a1a1a] px-4 py-3 rounded-xl border border-[#8b8b8b]/30"
+                      >
+                        <span className="text-[#8b8b8b]">
+                          {a.name} — <span className="text-[#8b8b8b]/60">{a.time}</span>
+                          {a.target && ` → ${a.target}`}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const updated = customActivities.filter((_, idx) => idx !== i);
+                            setCustomActivities(updated);
+                            localStorage.setItem('customActivities', JSON.stringify(updated));
+                            window.dispatchEvent(new Event('customActivitiesUpdated'));
+                          }}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const name = e.target.name.value.trim();
+                    const time = e.target.time.value.trim();
+                    const target = e.target.target.value.trim();
+                    if (!name || !time) return;
+                    handleAddCustomActivity(name, time, target);
+                    e.target.reset();
+                  }}
+                  className="space-y-4"
+                >
+                  <input
+                    name="name"
+                    placeholder="Nome da atividade"
+                    className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
+                  />
+                  <input
+                    name="time"
+                    placeholder="Tempo padrão (ex: 01:30)"
+                    className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
+                  />
+                  <input
+                    name="target"
+                    placeholder="Meta diária (ex: 04:00)"
+                    className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]/20 transition-all"
+                  />
+                  <button
+                    type="submit"
+                    className="w-full p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40 btn-hover-scale"
+                  >
+                    Adicionar Atividade
+                  </button>
+                </form>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }
