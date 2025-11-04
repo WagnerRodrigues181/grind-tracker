@@ -2,17 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { LogOut, User, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
+import ProfileCard from '../profile/ProfileCard';
 
 export default function Header() {
   const { currentUser, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const menuRef = useRef(null);
 
   const userName = currentUser?.email?.split('@')[0] || 'Usuário';
   const displayName = userName.charAt(0).toUpperCase() + userName.slice(1).toLowerCase();
 
-  // Detectar scroll para encolher header
+  // Detectar scroll
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -32,16 +34,17 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fechar menu com ESC
+  // Fechar com ESC
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === 'Escape' && isMenuOpen) {
+      if (e.key === 'Escape') {
         setIsMenuOpen(false);
+        setShowProfile(false);
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isMenuOpen]);
+  }, []);
 
   async function handleLogout() {
     try {
@@ -60,7 +63,7 @@ export default function Header() {
     >
       <div className="px-6 md:px-8">
         <div className="flex items-center justify-between max-w-[1800px] mx-auto">
-          {/* Logo e marca - lado esquerdo */}
+          {/* Logo e marca */}
           <div className="flex items-center gap-3">
             <button
               className="group flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-primary-accent/50 rounded-lg p-1 -m-1 transition-all hover:scale-[1.02]"
@@ -88,7 +91,7 @@ export default function Header() {
             </button>
           </div>
 
-          {/* Menu do usuário - lado direito */}
+          {/* Menu do usuário */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -103,15 +106,12 @@ export default function Header() {
               aria-expanded={isMenuOpen}
               aria-haspopup="true"
             >
-              {/* Avatar */}
               <div className="w-8 h-8 rounded-full bg-primary-accent flex items-center justify-center text-primary-first font-bold text-sm group-hover:scale-110 transition-transform">
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              {/* Nome - oculto em mobile */}
               <span className="hidden sm:inline text-sm font-medium text-primary-accent">
                 {displayName}
               </span>
-              {/* Indicador de dropdown */}
               <svg
                 className={`w-4 h-4 text-primary-accent/70 transition-transform duration-200 ${
                   isMenuOpen ? 'rotate-180' : ''
@@ -136,7 +136,6 @@ export default function Header() {
                 role="menu"
                 aria-orientation="vertical"
               >
-                {/* Header do menu */}
                 <div className="px-4 py-3 bg-primary-accent/5 border-b border-primary-accent/10">
                   <p className="text-xs text-primary-accent/60 font-medium mb-1">Logado como</p>
                   <p className="text-sm font-semibold text-primary-accent truncate">
@@ -144,12 +143,11 @@ export default function Header() {
                   </p>
                 </div>
 
-                {/* Opções do menu */}
                 <div className="py-2">
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);
-                      // Dps addicionar lógica de perfil aqui
+                      setShowProfile(true);
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-primary-accent hover:bg-primary-accent/10 transition-colors focus:outline-none focus:bg-primary-accent/10"
                     role="menuitem"
@@ -161,7 +159,7 @@ export default function Header() {
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);
-                      // Adicionar lógica de configurações aqui
+                      alert('Configurações em desenvolvimento');
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-primary-accent hover:bg-primary-accent/10 transition-colors focus:outline-none focus:bg-primary-accent/10"
                     role="menuitem"
@@ -171,10 +169,8 @@ export default function Header() {
                   </button>
                 </div>
 
-                {/* Separador */}
                 <div className="border-t border-primary-accent/10"></div>
 
-                {/* Logout */}
                 <div className="py-2">
                   <button
                     onClick={() => {
@@ -194,7 +190,22 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Animação para o dropdown */}
+      {/* PROFILE CARD MODAL */}
+      {showProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="relative">
+            <ProfileCard
+              onClose={() => setShowProfile(false)}
+              onEdit={() => {
+                setShowProfile(false);
+                alert('Edição de perfil em desenvolvimento');
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ANIMAÇÃO */}
       <style jsx>{`
         @keyframes fadeIn {
           from {

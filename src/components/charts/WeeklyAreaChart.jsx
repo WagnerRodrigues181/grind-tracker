@@ -151,7 +151,14 @@ export default function WeeklyAreaChart() {
       >
         {/* === TÍTULO + PÍLULA DO TOTAL === */}
         <div className="text-center mb-5">
-          <h2 className="text-xl md:text-2xl font-bold text-primary-accent">
+          <h2
+            className="text-xl md:text-2xl font-bold text-[#8b8b8b] tracking-wide"
+            style={{
+              fontFamily: "'EB Garamond', serif",
+              textShadow: '0 0 20px rgba(139, 139, 139, 0.5), 0 0 40px rgba(139, 139, 139, 0.3)',
+              letterSpacing: '0.05em',
+            }}
+          >
             Produtividade Semanal
           </h2>
           <p className="text-xs text-primary-accent/60 mt-1">
