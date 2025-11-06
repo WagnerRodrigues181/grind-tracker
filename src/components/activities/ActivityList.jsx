@@ -358,7 +358,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           {Object.keys(aggregated).length === 0 ? (
             <div className="text-center py-12">
               <p className="text-[#8b8b8b] mb-2">Nenhuma atividade neste dia</p>
-              <p className="text-sm text-[#8b8b8b]/70">Adicione sua primeira atividade acima!</p>
+              <p className="text-sm text-[#8b8b8b]/70">Adicione sua primeira atividade!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
