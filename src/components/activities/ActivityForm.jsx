@@ -62,18 +62,23 @@ export default function ActivityForm({ onActivityAdded }) {
 
     try {
       setLoading(true);
+      console.log('🔥 SALVANDO ATIVIDADE PARA UID:', currentUser.uid);
+      console.log('Coleção:', `activities/${currentUser.uid}/entries`);
+
       const minutes = timeToMinutes(time);
       const targetMinutes = targetTime ? timeToMinutes(targetTime) : null;
 
-      await addDoc(collection(db, 'activities'), {
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
+      // SALVA NA SUBCOLEÇÃO DO USUÁRIO (CORRETO)
+      await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         activity: activityName,
         minutes,
         targetMinutes,
         date: getToday(),
         createdAt: serverTimestamp(),
+        userEmail: currentUser.email,
+        userId: currentUser.uid,
       });
+
       setSuccess('Atividade adicionada com sucesso!');
       setSelectedActivity('');
       setCustomActivity('');
@@ -129,7 +134,7 @@ export default function ActivityForm({ onActivityAdded }) {
           <button
             type="button"
             onClick={() => setShowMenu(true)}
-            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition"
+            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b]² transition"
           >
             <Settings className="w-4 h-4" />
             Gerenciar

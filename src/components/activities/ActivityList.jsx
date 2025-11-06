@@ -80,8 +80,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     }
 
     const q = query(
-      collection(db, 'activities'),
-      where('userId', '==', userId),
+      collection(db, 'activities', userId, 'entries'),
       where('date', '==', currentDate)
     );
 
@@ -146,10 +145,10 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
         const entries = aggregated[activityName]?.entries || [];
         const last = entries[entries.length - 1];
         if (!last || last.minutes + minutesDelta < 0) return;
-        await deleteDoc(doc(db, 'activities', last.id));
+        await deleteDoc(doc(db, 'activities', userId, 'entries', last.id));
       } else {
-        await addDoc(collection(db, 'activities'), {
-          userId: userId,
+        await addDoc(collection(db, 'activities', userId, 'entries'), {
+          userId,
           userEmail: currentUser.email,
           activity: activityName,
           minutes: minutesDelta,
@@ -172,7 +171,9 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
       return;
 
     const entries = aggregated[activityName]?.entries || [];
-    await Promise.all(entries.map((e) => deleteDoc(doc(db, 'activities', e.id))));
+    await Promise.all(
+      entries.map((e) => deleteDoc(doc(db, 'activities', userId, 'entries', e.id)))
+    );
     onRefresh?.();
   }
 
