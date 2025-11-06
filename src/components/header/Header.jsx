@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { LogOut, User, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
-import ProfileCard from '../profile/ProfileCard';
 
-export default function Header() {
+export default function Header({ setShowProfile }) {
   const { currentUser, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
   const menuRef = useRef(null);
 
   const userName = currentUser?.email?.split('@')[0] || 'Usuário';
@@ -39,7 +37,6 @@ export default function Header() {
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
         setIsMenuOpen(false);
-        setShowProfile(false);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -147,7 +144,7 @@ export default function Header() {
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);
-                      setShowProfile(true);
+                      setShowProfile(true); // ← Abre o modal no Dashboard
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-primary-accent hover:bg-primary-accent/10 transition-colors focus:outline-none focus:bg-primary-accent/10"
                     role="menuitem"
@@ -189,21 +186,6 @@ export default function Header() {
           </div>
         </div>
       </div>
-
-      {/* PROFILE CARD MODAL */}
-      {showProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative">
-            <ProfileCard
-              onClose={() => setShowProfile(false)}
-              onEdit={() => {
-                setShowProfile(false);
-                alert('Edição de perfil em desenvolvimento');
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ANIMAÇÃO */}
       <style jsx>{`

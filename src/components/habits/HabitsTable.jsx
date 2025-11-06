@@ -261,6 +261,10 @@ export default function HabitsTable({ onActivityAdded }) {
   }
 
   async function registerHabitAsActivity(habitName, year, month, day) {
+    console.log('🔥 REGISTRANDO HÁBITO COMO ATIVIDADE');
+    console.log('UID:', currentUser.uid);
+    console.log('Coleção:', `activities/${currentUser.uid}/entries`);
+
     try {
       const duration = await getHabitDuration(currentUser.uid, habitName);
       if (!duration) return;
@@ -272,14 +276,14 @@ export default function HabitsTable({ onActivityAdded }) {
       const custom = customActivities.find((c) => c.name === habitName);
       const targetMinutes = custom?.target ? timeToMinutes(custom.target) : null;
 
-      await addDoc(collection(db, 'activities'), {
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
+      await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         activity: habitName,
         minutes,
         targetMinutes,
         date: dateStr,
         createdAt: serverTimestamp(),
+        userEmail: currentUser.email,
+        userId: currentUser.uid,
       });
     } catch (error) {
       console.error('Erro ao registrar atividade:', error);
