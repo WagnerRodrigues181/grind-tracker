@@ -295,15 +295,18 @@ export default function HabitsTable({ onActivityAdded }) {
     try {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const q = query(
-        collection(db, 'activities'),
-        where('userId', '==', currentUser.uid),
+        collection(db, 'activities', currentUser.uid, 'entries'),
         where('activity', '==', habitName),
         where('date', '==', dateStr)
       );
 
       const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map((doc) => deleteDoc(doc(db, 'activities', doc.id)));
+      const deletePromises = snapshot.docs.map((docSnap) =>
+        deleteDoc(doc(db, 'activities', currentUser.uid, 'entries', docSnap.id))
+      );
       await Promise.all(deletePromises);
+
+      onActivityAdded?.();
     } catch (error) {
       console.error('Erro ao remover atividade:', error);
       throw error;
