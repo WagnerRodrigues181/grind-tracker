@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   AreaChart,
@@ -10,26 +10,31 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { db } from '../../services/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { formatDuration } from '../../utils/dateHelpers';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function WeeklyAreaChart() {
+  const { currentUser } = useAuth();
   const [weekOffset, setWeekOffset] = useState(0);
   const [chartData, setChartData] = useState([]);
-  const [loading, setLoading] = useState(true); // Primeiro load
-  const [isRefreshing, setIsRefreshing] = useState(false); // Atualizações
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [weekDates, setWeekDates] = useState({ start: '', end: '' });
 
-  // === CARGA DE DADOS ===
-  useEffect(() => {
-    loadWeekData();
-  }, [weekOffset]);
+  const unsubscribeRef = useRef(null);
 
-  async function loadWeekData() {
-    if (chartData.length === 0) {
-      setLoading(true);
-    } else {
-      setIsRefreshing(true);
+  // === CARGA DE DADOS COM LISTENER EM TEMPO REAL ===
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
+
+    // Limpar listener anterior
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
     }
 
     const today = new Date();
@@ -47,35 +52,94 @@ export default function WeeklyAreaChart() {
     });
 
     const daysOfWeek = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    const data = daysOfWeek.map((day, i) => {
+    const emptyData = daysOfWeek.map((day, i) => {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
       return { day, date: formatDateForQuery(date), minutes: 0, hours: 0 };
     });
 
-    try {
-      const q = query(
-        collection(db, 'activities'),
-        where('date', '>=', formatDateForQuery(weekStart)),
-        where('date', '<=', formatDateForQuery(weekEnd))
-      );
-      const snapshot = await getDocs(q);
-      snapshot.forEach((doc) => {
-        const activity = doc.data();
-        const dayData = data.find((d) => d.date === activity.date);
-        if (dayData) {
-          dayData.minutes += activity.minutes;
-          dayData.hours = dayData.minutes / 60;
-        }
-      });
-      setChartData(data);
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+    // Se já tenho dados, mostra loading sutil
+    if (chartData.length > 0) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
     }
-  }
+
+    const startDate = formatDateForQuery(weekStart);
+    const endDate = formatDateForQuery(weekEnd);
+
+    console.log('🔍 WeeklyChart - Configurando listener');
+    console.log('UID:', currentUser.uid);
+    console.log('Range:', startDate, 'até', endDate);
+    console.log('Path:', `activities/${currentUser.uid}/entries`);
+
+    // Query para a semana
+    const q = query(
+      collection(db, 'activities', currentUser.uid, 'entries'),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
+
+    // LISTENER EM TEMPO REAL
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        console.log('WeeklyChart - Snapshot recebido:', snapshot.size, 'documentos');
+
+        // 1. Cria base limpa
+        const newData = emptyData.map((day) => ({
+          ...day,
+          minutes: 0,
+          hours: 0,
+        }));
+
+        // 2. Acumula minutos por dia (SEM MUTAÇÃO)
+        const dayMap = new Map();
+        snapshot.forEach((doc) => {
+          const act = doc.data();
+          console.log('Documento:', {
+            id: doc.id,
+            activity: act.activity,
+            date: act.date,
+            minutes: act.minutes,
+          });
+
+          if (!dayMap.has(act.date)) {
+            dayMap.set(act.date, 0);
+          }
+          dayMap.set(act.date, dayMap.get(act.date) + act.minutes);
+        });
+
+        // 3. Preenche newData com os totais
+        newData.forEach((day) => {
+          const mins = dayMap.get(day.date) || 0;
+          day.minutes = mins;
+          day.hours = Number((mins / 60).toFixed(2));
+        });
+
+        console.log('Dados finais do chart:', newData);
+        setChartData(newData);
+        setLoading(false);
+        setIsRefreshing(false);
+      },
+      (error) => {
+        console.error('Erro no listener:', error);
+        setChartData(emptyData);
+        setLoading(false);
+        setIsRefreshing(false);
+      }
+    );
+
+    unsubscribeRef.current = unsubscribe;
+
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🧹 Limpando listener do WeeklyChart');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [weekOffset, currentUser?.uid]);
 
   // === FORMATAÇÃO DE DATAS ===
   const formatDateForQuery = (date) => {
@@ -129,26 +193,21 @@ export default function WeeklyAreaChart() {
   // === RENDER ===
   return (
     <div
-      className="card p-6 md:p-8 rounded-xl shadow-sm bg-primary-first/50 backdrop-blur-sm border border-primary-accent/10"
-      style={{ minHeight: '380px' }} // ALTURA FIXA — NUNCA TREME
+      className="card p-6 md:p-8 rounded-xl shadow-sm bg-primary-first/50 backdrop-blur-sm border border-primary-accent/10 relative"
+      style={{ minHeight: '380px' }}
       aria-label={ariaLabel}
     >
-      {/* === OVERLAY DE LOADING (loading ou refresh) === */}
-      {(loading || isRefreshing) && (
-        <div className="absolute inset-0 bg-primary-first/70 backdrop-blur-[1px] rounded-xl z-20 flex items-center justify-center">
+      {/* === OVERLAY DE LOADING (apenas isRefreshing agora, mais sutil) === */}
+      {isRefreshing && (
+        <div className="absolute inset-0 bg-primary-first/40 backdrop-blur-[0.5px] rounded-xl z-20 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-accent"></div>
-            <p className="text-xs text-primary-accent/70 font-medium">
-              {loading ? 'Carregando...' : 'Atualizando...'}
-            </p>
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-accent/70"></div>
           </div>
         </div>
       )}
 
       {/* === CONTEÚDO PRINCIPAL (sempre montado) === */}
-      <div
-        className={`transition-opacity duration-300 ${loading || isRefreshing ? 'opacity-40' : 'opacity-100'}`}
-      >
+      <div className={`transition-opacity duration-200 ${loading ? 'opacity-0' : 'opacity-100'}`}>
         {/* === TÍTULO + PÍLULA DO TOTAL === */}
         <div className="text-center mb-5">
           <h2
@@ -207,7 +266,6 @@ export default function WeeklyAreaChart() {
                 cursor={{ stroke: '#8b8b8b', strokeWidth: 1, strokeDasharray: '3 3' }}
               />
 
-              {/* ANIMAÇÃO DA ONDA: SÓ QUANDO OS DADOS MUDAM (refresh ou navegação) */}
               <Area
                 type="monotone"
                 dataKey="hours"
@@ -215,9 +273,9 @@ export default function WeeklyAreaChart() {
                 strokeWidth={2}
                 fill="url(#colorHours)"
                 fillOpacity={1}
-                animationDuration={400}
+                animationDuration={300}
                 animationEasing="ease-in-out"
-                isAnimationActive={!loading} // ANIMAÇÃO ATIVA SÓ APÓS O PRIMEIRO LOAD
+                isAnimationActive={!loading}
                 dot={{ r: 4, fill: '#8b8b8b', strokeWidth: 2, stroke: '#fff' }}
                 activeDot={{ r: 6, stroke: '#8b8b8b', strokeWidth: 2, fill: '#fff' }}
               />
@@ -250,6 +308,16 @@ export default function WeeklyAreaChart() {
           💪 Quanto mais alto, mais perto do dever cumprido.
         </p>
       </div>
+
+      {/* === LOADING INICIAL (primeiro carregamento) === */}
+      {loading && (
+        <div className="absolute inset-0 bg-primary-first/70 backdrop-blur-[1px] rounded-xl z-30 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-accent"></div>
+            <p className="text-xs text-primary-accent/70 font-medium">Carregando...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
