@@ -160,31 +160,27 @@ export default function WeeklyAreaChart() {
 
     unsubscribeRef.current = individualUnsub;
 
-    // === MODO COMPARAÇÃO: LISTENERS INDIVIDUAIS + CONTADOR DE CARREGAMENTO ===
+    // === MODO COMPARAÇÃO: ATUALIZAÇÃO EM TEMPO REAL (CORRIGIDO) ===
     if (viewMode === 'comparison' && comparisonUsers.length === 2) {
       const user1Data = new Map();
       const user2Data = new Map();
-      let loadedCount = 0;
-      const totalUsers = 2;
 
-      const tryFinishLoading = () => {
-        loadedCount++;
-        if (loadedCount === totalUsers) {
-          const compData = emptyData.map((day) => {
-            const u1 = user1Data.get(day.date) || 0;
-            const u2 = user2Data.get(day.date) || 0;
-            return {
-              day: day.day,
-              date: day.date,
-              user1Minutes: u1,
-              user2Minutes: u2,
-              user1Hours: Number((u1 / 60).toFixed(2)),
-              user2Hours: Number((u2 / 60).toFixed(2)),
-            };
-          });
-          setComparisonData(compData);
-          setLoading(false);
-        }
+      // Função que atualiza o gráfico SEMPRE que qualquer usuário muda
+      const updateComparisonChart = () => {
+        const compData = emptyData.map((day) => {
+          const u1 = user1Data.get(day.date) || 0;
+          const u2 = user2Data.get(day.date) || 0;
+          return {
+            day: day.day,
+            date: day.date,
+            user1Minutes: u1,
+            user2Minutes: u2,
+            user1Hours: Number((u1 / 60).toFixed(2)),
+            user2Hours: Number((u2 / 60).toFixed(2)),
+          };
+        });
+        setComparisonData(compData);
+        setLoading(false); // Sempre mostra o gráfico, mesmo se um usuário falhar
       };
 
       const usersToCompare = comparisonUsers.map((user) => ({
@@ -216,12 +212,13 @@ export default function WeeklyAreaChart() {
               dayMap.forEach((mins, date) => user2Data.set(date, mins));
             }
 
-            tryFinishLoading();
+            // ATUALIZA O GRÁFICO IMEDIATAMENTE
+            updateComparisonChart();
           },
           () => {
             if (isCurrent) user1Data.clear();
             else user2Data.clear();
-            tryFinishLoading();
+            updateComparisonChart(); // Mesmo com erro, tenta atualizar
           }
         );
 
