@@ -39,7 +39,7 @@ export default function HabitsTable({ onActivityAdded }) {
   const [showPredefinedSelect, setShowPredefinedSelect] = useState(false);
   const [availableActivities, setAvailableActivities] = useState([]);
 
-  // === ESTADO VISUAL (Código 2) ===
+  // === ESTADO VISUAL ===
   const [pulsingDays, setPulsingDays] = useState({});
   const [fireEmoji, setFireEmoji] = useState({});
   const [particles, setParticles] = useState([]);
@@ -183,13 +183,18 @@ export default function HabitsTable({ onActivityAdded }) {
     }
   }
 
+  // === CORRIGIDO: PASSA O NOME DO HÁBITO ===
   async function handleToggleDay(habitName, day) {
+    if (!habitName || !currentUser?.uid) {
+      console.warn('Hábito ou usuário inválido');
+      return;
+    }
+
     try {
       const dayKey = String(day).padStart(2, '0');
       const currentValue = currentMonthTracking[habitName]?.[dayKey] === true;
       const pulseKey = `${habitName}-${day}`;
 
-      // Animação de pulso
       setPulsingDays((prev) => ({ ...prev, [pulseKey]: true }));
       setTimeout(
         () =>
@@ -201,7 +206,6 @@ export default function HabitsTable({ onActivityAdded }) {
         600
       );
 
-      // Partículas ao marcar
       if (!currentValue) {
         const newParticles = Array.from({ length: 4 }, (_, i) => ({
           id: `${pulseKey}-${i}-${Date.now()}`,
@@ -214,7 +218,6 @@ export default function HabitsTable({ onActivityAdded }) {
           setParticles((prev) => prev.filter((p) => !newParticles.some((np) => np.id === p.id)));
         }, 800);
 
-        // Fogo se completar o dia
         const totalHabits = habits.length;
         const completedAfterToggle = habits.filter((h) => {
           if (h === habitName) return true;
@@ -234,7 +237,6 @@ export default function HabitsTable({ onActivityAdded }) {
         }
       }
 
-      // UI otimista
       setCurrentMonthTracking((prev) => ({
         ...prev,
         [habitName]: {
@@ -243,15 +245,15 @@ export default function HabitsTable({ onActivityAdded }) {
         },
       }));
 
-      // Firebase
       await toggleHabitDay(currentUser.uid, year, month, day, habitName);
 
-      // Registrar/desregistrar atividade
       if (!currentValue) {
         await registerHabitAsActivity(habitName, year, month, day);
-        onActivityAdded?.();
+        // === CHAMA COM NOME VÁLIDO ===
+        onActivityAdded?.(habitName);
       } else {
         await removeHabitActivity(habitName, year, month, day);
+        onActivityAdded?.();
       }
     } catch (error) {
       console.error('Erro ao toggle dia:', error);
@@ -261,10 +263,6 @@ export default function HabitsTable({ onActivityAdded }) {
   }
 
   async function registerHabitAsActivity(habitName, year, month, day) {
-    console.log('🔥 REGISTRANDO HÁBITO COMO ATIVIDADE');
-    console.log('UID:', currentUser.uid);
-    console.log('Coleção:', `activities/${currentUser.uid}/entries`);
-
     try {
       const duration = await getHabitDuration(currentUser.uid, habitName);
       if (!duration) return;
@@ -366,26 +364,49 @@ export default function HabitsTable({ onActivityAdded }) {
           to { transform: rotate(360deg); }
         }
         
-        @keyframes glow-pulse {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 1; }
-        }
-        
         .pulse-ritual { animation: pulse-ritual 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
         .particle-effect { 
           position: absolute; width: 6px; height: 6px; background: #8b8b8b; 
-          border-radius: 50%; pointer-events: none; animation: particle-fly 0.8s cubic-bezier(0.4, 0, 0. | 1) forwards; 
+          border-radius: 50%; pointer-events: none; animation: particle-fly 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; 
           box-shadow: 0 0 8px #8b8b8b; 
         }
         .fire-emoji { position: absolute; font-size: 20px; animation: fire-appear 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; z-index: 50; }
         .rotating-ring { animation: rotate-ring 8s linear infinite; }
         .diagonal-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(139,139,139,0.03) 10px, rgba(139,139,139,0.03) 20px); }
-        .btn-hover-scale { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-hover-scale:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(139,139,139,0.3); }
         .habit-row:hover .habit-name { text-shadow: 0 0 12px rgba(139,139,139,0.8); }
         .trash-hover:hover { transform: rotate(15deg) scale(1.1); filter: drop-shadow(0 0 6px rgba(239,68,68,0.6)); }
         .plus-rotate:hover { transform: rotate(90deg); }
         .arrow-pulse { animation: pulse-ritual 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* SCROLL LIMPO E ESTÁVEL */
+        .scroll-container {
+          scrollbar-width: thin;
+          scrollbar-color: #8b8b8b #1a1a1a;
+        }
+        .scroll-container::-webkit-scrollbar {
+          width: 6px;
+        }
+        .scroll-container::-webkit-scrollbar-track {
+          background: #1a1a1a;
+          border-radius: 3px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+          background: #8b8b8b;
+          border-radius: 3px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #a0a0a0;
+        }
+
+        /* HOVER SEM DEFORMAÇÃO — FOCO PURO */
+        .activity-card {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .activity-card:hover {
+          background-color: #2a2a2a !important;
+          border-color: #8b8b8b !important;
+          box-shadow: 0 4px 16px rgba(139,139,139,0.2);
+        }
       `}</style>
 
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter relative">
@@ -418,7 +439,7 @@ export default function HabitsTable({ onActivityAdded }) {
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="ml-2 p-2 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/40 btn-hover-scale"
+                className="ml-2 p-2 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/40"
                 title="Adicionar hábito"
               >
                 <Plus className="w-5 h-5 plus-rotate" />
@@ -570,7 +591,7 @@ export default function HabitsTable({ onActivityAdded }) {
                             key={`${weekIdx}-${dayIdx}`}
                             className={`px-1 py-2 text-center relative ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
                           >
-                            {showFire && <div className="fire-emoji">🔥</div>}
+                            {showFire && <div className="fire-emoji">Fire</div>}
                             <div
                               className={`w-6 h-6 mx-auto flex items-center justify-center text-[9px] font-bold text-white ${colorClass} rounded-md shadow-lg relative overflow-hidden`}
                             >
@@ -591,7 +612,7 @@ export default function HabitsTable({ onActivityAdded }) {
           </div>
         </div>
 
-        {/* MODAL */}
+        {/* MODAL COM HOVER CORRIGIDO E SCROLL MELHORADO */}
         <AnimatePresence>
           {showAddModal && (
             <motion.div
@@ -625,7 +646,7 @@ export default function HabitsTable({ onActivityAdded }) {
                   <>
                     <button
                       onClick={() => setShowPredefinedSelect(true)}
-                      className="w-full mb-6 p-4 bg-[#252525] hover:bg-[#2a2a2a] text-[#8b8b8b] rounded-xl transition-all duration-300 font-semibold border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 btn-hover-scale"
+                      className="w-full mb-6 p-4 bg-[#252525] hover:bg-[#2a2a2a] text-[#8b8b8b] rounded-xl transition-all duration-300 font-semibold border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50"
                     >
                       Escolher de Atividades Pré-definidas
                     </button>
@@ -677,7 +698,7 @@ export default function HabitsTable({ onActivityAdded }) {
                       </button>
                       <button
                         onClick={handleAddHabit}
-                        className="flex-1 p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40 btn-hover-scale"
+                        className="flex-1 p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40"
                       >
                         Adicionar
                       </button>
@@ -687,13 +708,18 @@ export default function HabitsTable({ onActivityAdded }) {
                   <>
                     <button
                       onClick={() => setShowPredefinedSelect(false)}
-                      className="mb-6 text-sm text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition-colors flex items-center gap-2"
+                      className="mb-4 text-sm text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition-colors flex items-center gap-2"
                     >
                       ← Voltar
                     </button>
-                    <div className="space-y-3 mb-6">
+
+                    {/* SCROLL MELHORADO + HOVER SEM BUG */}
+                    <div
+                      className="max-h-80 overflow-y-auto mb-6 space-y-2 scroll-container pr-3"
+                      style={{ scrollBehavior: 'smooth' }}
+                    >
                       {availableActivities.length === 0 ? (
-                        <p className="text-sm text-[#8b8b8b]/60 text-center py-4">
+                        <p className="text-sm text-[#8b8b8b]/60 text-center py-8">
                           Nenhuma atividade pré-definida.
                         </p>
                       ) : (
@@ -701,10 +727,12 @@ export default function HabitsTable({ onActivityAdded }) {
                           <button
                             key={activity.name}
                             onClick={() => handleAddHabitFromPredefined(activity)}
-                            className="w-full p-4 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl text-left transition-all duration-300 border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 btn-hover-scale"
+                            className="activity-card w-full p-3 bg-[#1a1a1a] rounded-xl text-left border border-[#8b8b8b]/30 flex flex-col group"
                           >
-                            <div className="font-semibold text-[#8b8b8b] mb-1">{activity.name}</div>
-                            <div className="text-xs text-[#8b8b8b]/60">
+                            <div className="font-semibold text-[#8b8b8b] group-hover:text-[#a0a0a0] transition-colors">
+                              {activity.name}
+                            </div>
+                            <div className="text-xs text-[#8b8b8b]/60 mt-1 group-hover:text-[#8b8b8b]/80 transition-colors">
                               Duração: {activity.time}
                               {activity.target && ` → Meta: ${activity.target}`}
                             </div>
@@ -712,6 +740,7 @@ export default function HabitsTable({ onActivityAdded }) {
                         ))
                       )}
                     </div>
+
                     <button
                       onClick={() => {
                         setShowAddModal(false);

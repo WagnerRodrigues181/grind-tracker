@@ -96,7 +96,7 @@ export default function Header({ setShowProfile }) {
                 aria-label="Página inicial"
               >
                 <img
-                  src="/favicon-96x96.png"
+                  src="/android-chrome-512x512.png"
                   alt="Grind Tracker"
                   className={`object-cover transition-all duration-300 ${
                     isScrolled ? 'w-9 h-9' : 'w-10 h-10'

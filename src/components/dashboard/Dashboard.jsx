@@ -16,20 +16,27 @@ export default function Dashboard() {
   const [showProfile, setShowProfile] = useState(false);
 
   async function handleActivityAdded(activityName) {
-    if (!currentUser?.uid) return;
+    if (!currentUser?.uid || !activityName?.trim()) {
+      console.warn('Atividade inválida ou usuário não logado');
+      return;
+    }
 
     try {
-      await addDoc(collection(db, 'activities'), {
+      const entriesRef = collection(db, 'activities', currentUser.uid, 'entries');
+
+      await addDoc(entriesRef, {
         userId: currentUser.uid,
         userEmail: currentUser.email,
-        activity: activityName,
+        activity: activityName.trim(),
         minutes: 30,
         date: new Date().toISOString().split('T')[0],
         createdAt: serverTimestamp(),
       });
+
+      console.log('Atividade salva com sucesso:', activityName);
       setRefreshTrigger((prev) => prev + 1);
     } catch (err) {
-      console.error('Erro ao registrar atividade:', err);
+      console.error('Erro ao salvar atividade:', err);
     }
   }
 

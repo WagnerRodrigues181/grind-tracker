@@ -30,6 +30,8 @@ import crossfitImg from '../../assets/Crossfit.webp';
 import rosarioImg from '../../assets/Rosário.webp';
 import leituraImg from '../../assets/Leitura.webp';
 import musculacaoImg from '../../assets/Musculação.webp';
+import journalImg from '../../assets/Journal.webp';
+import sonoImg from '../../assets/Sono.webp';
 
 const activityImages = {
   Pesquisa: pesquisaImg,
@@ -38,6 +40,8 @@ const activityImages = {
   'Rosário (Terço)': rosarioImg,
   Leitura: leituraImg,
   Musculação: musculacaoImg,
+  Journal: journalImg,
+  Sono: sonoImg,
 };
 
 export default function ActivityList({ refreshTrigger, onRefresh }) {
