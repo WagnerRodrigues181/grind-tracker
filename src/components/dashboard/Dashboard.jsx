@@ -15,7 +15,8 @@ export default function Dashboard() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showProfile, setShowProfile] = useState(false);
 
-  async function handleActivityAdded(activityName) {
+  // ✅ FUNÇÃO PARA ADICIONAR ATIVIDADE DO FORMULÁRIO
+  async function handleActivityAddedFromForm(activityName) {
     if (!currentUser?.uid || !activityName?.trim()) {
       console.warn('Atividade inválida ou usuário não logado');
       return;
@@ -40,6 +41,12 @@ export default function Dashboard() {
     }
   }
 
+  // ✅ FUNÇÃO APENAS PARA REFRESH (USADA PELO HABITSTABLE)
+  function handleRefresh() {
+    console.log('🔄 Trigger de refresh acionado');
+    setRefreshTrigger((prev) => prev + 1);
+  }
+
   return (
     <>
       <div className="min-h-screen bg-primary-first">
@@ -52,15 +59,17 @@ export default function Dashboard() {
             </div>
 
             <div className="w-full">
-              <ActivityList refreshTrigger={refreshTrigger} onRefresh={handleActivityAdded} />
+              <ActivityList refreshTrigger={refreshTrigger} onRefresh={handleRefresh} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
               <div>
-                <ActivityForm onActivityAdded={handleActivityAdded} />
+                {/* ActivityForm CRIA documentos, então usa handleActivityAddedFromForm */}
+                <ActivityForm onActivityAdded={handleActivityAddedFromForm} />
               </div>
               <div>
-                <HabitsTable onActivityAdded={handleActivityAdded} />
+                {/* HabitsTable JÁ CRIA documentos, então usa apenas handleRefresh */}
+                <HabitsTable onActivityAdded={handleRefresh} />
               </div>
             </div>
           </div>
@@ -76,13 +85,7 @@ export default function Dashboard() {
           onClick={() => setShowProfile(false)}
         >
           <div className="relative w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <ProfileCard
-              onClose={() => setShowProfile(false)}
-              onEdit={() => {
-                setShowProfile(false);
-                alert('Edição de perfil em desenvolvimento');
-              }}
-            />
+            <ProfileCard onClose={() => setShowProfile(false)} />
           </div>
         </div>
       )}

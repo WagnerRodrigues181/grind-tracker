@@ -7,6 +7,15 @@
   body {
     @apply bg-primary-first text-primary-third;
   }
+
+  /* 🔥 FIX: Previne scroll automático durante updates de atividades */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  html.no-scroll-behavior {
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Components */
@@ -27,6 +36,50 @@
 
   .card {
     @apply bg-primary-second rounded-xl shadow-sm border border-primary-accent p-6 text-primary-third;
+  }
+}
+
+/* 🔥 FIX: Otimizações de performance para prevenir layout shifts */
+@layer utilities {
+  /* Container estável para listas dinâmicas */
+  .stable-container {
+    contain: layout style;
+    content-visibility: auto;
+    min-height: 400px;
+  }
+
+  /* Grid responsivo sem quebras visuais */
+  .stable-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    will-change: contents;
+  }
+
+  /* Cards com GPU acceleration */
+  .gpu-card {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+
+  /* Transições suaves otimizadas */
+  .smooth-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Previne flash de loading */
+  .no-flash {
+    animation: fadeIn 0.2s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 }
 
@@ -101,4 +154,69 @@
 
 .animate-breathing-delayed {
   animation: breathing 4s ease-in-out 1.2s infinite;
+}
+
+/* 🔥 FIX: Otimizações específicas para ActivityList */
+.activity-list-container {
+  min-height: 500px;
+  contain: layout style paint;
+  isolation: isolate;
+}
+
+.activity-grid-optimized {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  transform: translateZ(0);
+  will-change: contents;
+}
+
+.activity-card-optimized {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition:
+    box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.activity-card-optimized:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 24px rgba(139, 139, 139, 0.2);
+}
+
+/* 🔥 FIX: Previne layout shift durante loading */
+.prevent-shift {
+  min-height: inherit;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 🔥 FIX: Smooth scroll restoration */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Disable scroll behavior during updates */
+html.updating-content {
+  scroll-behavior: auto !important;
+}
+
+/* 🔥 FIX: Otimização para rendering de imagens */
+img {
+  content-visibility: auto;
+  contain-intrinsic-size: 176px 176px; /* 44 * 4 = 176px (w-44) */
+}
+
+/* 🔥 FIX: Previne reflow durante transições */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 🔥 FIX: Otimização para motion do Framer Motion */
+[data-framer-motion] {
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
