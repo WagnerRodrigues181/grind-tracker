@@ -38,6 +38,10 @@ import leituraImg from '../assets/Leitura.webp';
 import musculacaoImg from '../assets/Musculação.webp';
 import journalImg from '../assets/Journal.webp';
 import sonoImg from '../assets/Sono.webp';
+import corridaImg from '../assets/Corrida.webp';
+import bikeImg from '../assets/Bike.webp';
+import dietaCuttingImg from '../assets/Dieta (cutting).webp';
+import dietaBulkingImg from '../assets/Dieta (bulking).webp';
 
 export const activityImages = {
   Pesquisa: pesquisaImg,
@@ -48,6 +52,10 @@ export const activityImages = {
   Musculação: musculacaoImg,
   Journal: journalImg,
   Sono: sonoImg,
+  Corrida: corridaImg,
+  'Dieta (cutting)': dietaCuttingImg,
+  'Dieta (bulking)': dietaBulkingImg,
+  Bike: bikeImg,
 };
 
 export function getActivityImage(activityName) {

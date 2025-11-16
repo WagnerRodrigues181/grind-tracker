@@ -198,6 +198,15 @@ export default function WeeklyAreaChart() {
         const userUnsub = onSnapshot(
           userQuery,
           (snapshot) => {
+            console.log(
+              `📊 Dados recebidos para ${isCurrent ? 'usuário atual' : 'outro usuário'}:`,
+              {
+                uid,
+                docsCount: snapshot.docs.length,
+                totalMinutes: snapshot.docs.reduce((sum, doc) => sum + doc.data().minutes, 0),
+              }
+            );
+
             const dayMap = new Map();
             snapshot.forEach((doc) => {
               const act = doc.data();
@@ -215,7 +224,8 @@ export default function WeeklyAreaChart() {
             // ATUALIZA O GRÁFICO IMEDIATAMENTE
             updateComparisonChart();
           },
-          () => {
+          (error) => {
+            console.error(`❌ Erro ao buscar dados de ${uid}:`, error);
             if (isCurrent) user1Data.clear();
             else user2Data.clear();
             updateComparisonChart(); // Mesmo com erro, tenta atualizar

@@ -12,10 +12,8 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showProfile, setShowProfile] = useState(false);
 
-  // ✅ FUNÇÃO PARA ADICIONAR ATIVIDADE DO FORMULÁRIO
   async function handleActivityAddedFromForm(activityName) {
     if (!currentUser?.uid || !activityName?.trim()) {
       console.warn('Atividade inválida ou usuário não logado');
@@ -35,16 +33,14 @@ export default function Dashboard() {
       });
 
       console.log('Atividade salva com sucesso:', activityName);
-      setRefreshTrigger((prev) => prev + 1);
     } catch (err) {
       console.error('Erro ao salvar atividade:', err);
     }
   }
 
-  // ✅ FUNÇÃO APENAS PARA REFRESH (USADA PELO HABITSTABLE)
   function handleRefresh() {
-    console.log('🔄 Trigger de refresh acionado');
-    setRefreshTrigger((prev) => prev + 1);
+    console.log('🔄 Refresh chamado (listeners já cuidam da atualização)');
+    // o Firestore onSnapshot já atualiza automaticamente
   }
 
   return (
@@ -55,20 +51,18 @@ export default function Dashboard() {
         <main className="w-full px-8 py-8">
           <div className="max-w-[1800px] mx-auto space-y-8">
             <div className="w-full">
-              <WeeklyAreaChart key={refreshTrigger} />
+              <WeeklyAreaChart />
             </div>
 
             <div className="w-full">
-              <ActivityList refreshTrigger={refreshTrigger} onRefresh={handleRefresh} />
+              <ActivityList onRefresh={handleRefresh} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
               <div>
-                {/* ActivityForm CRIA documentos, então usa handleActivityAddedFromForm */}
                 <ActivityForm onActivityAdded={handleActivityAddedFromForm} />
               </div>
               <div>
-                {/* HabitsTable JÁ CRIA documentos, então usa apenas handleRefresh */}
                 <HabitsTable onActivityAdded={handleRefresh} />
               </div>
             </div>
@@ -78,7 +72,6 @@ export default function Dashboard() {
         <Footer />
       </div>
 
-      {/* MODAL DO PERFIL - FORA DO HEADER, NA RAIZ */}
       {showProfile && (
         <div
           className="fixed inset-0 z-50 flex flex-col items-center pt-24 px-4 pb-8 bg-black/60 backdrop-blur-sm overflow-y-auto"

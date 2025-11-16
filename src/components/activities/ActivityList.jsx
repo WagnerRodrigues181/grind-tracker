@@ -32,29 +32,25 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   const { currentUser } = useAuth();
   const { startTimer } = useTimer();
 
-  // Estados principais
   const [activities, setActivities] = useState([]);
   const [aggregated, setAggregated] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [totalMinutes, setTotalMinutes] = useState(0);
   const [currentDate, setCurrentDate] = useState(getToday());
 
-  // Estados do modal de descrição
   const [openActivity, setOpenActivity] = useState(null);
   const [descriptionText, setDescriptionText] = useState('');
   const [descLoading, setDescLoading] = useState(false);
 
-  // Estados do modal de timer
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
 
   const userId = useMemo(() => currentUser?.uid, [currentUser?.uid]);
 
-  // 🔥 FIX: Ref para prevenir scroll durante atualizações
-  const containerRef = useRef(null);
-  const scrollLockRef = useRef(false);
+  // Salvo a posição do scroll ANTES de qualquer atualização
+  const scrollPositionRef = useRef(0);
+  const isUpdatingRef = useRef(false);
 
-  // Carrega atividades customizadas do localStorage
   const customActivities = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('customActivities') || '[]');
@@ -65,35 +61,42 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
 
   const unsubscribeRef = useRef(null);
 
-  // 🔥 FIX: Hook para bloquear scroll durante atualizações
+  // Hook que restaura o scroll SEMPRE que o DOM mudar
   useEffect(() => {
-    if (scrollLockRef.current && containerRef.current) {
-      const scrollY = window.scrollY;
+    if (isUpdatingRef.current) {
+      // Bloqueia scroll no HTML
+      document.documentElement.classList.add('scroll-lock');
+
       requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-        scrollLockRef.current = false;
+        window.scrollTo(0, scrollPositionRef.current);
+        // Dupla verificação para garantir
+        setTimeout(() => {
+          window.scrollTo(0, scrollPositionRef.current);
+          document.documentElement.classList.remove('scroll-lock');
+          isUpdatingRef.current = false;
+        }, 50);
       });
     }
   });
 
+  // Cleanup do scroll lock
+  useEffect(() => {
+    return () => {
+      document.documentElement.classList.remove('scroll-lock');
+    };
+  }, []);
+
   // ============================================
-  // LISTENER FIRESTORE (Otimizado)
+  // LISTENER FIRESTORE (SEM FLASH DE LOADING)
   // ============================================
   useEffect(() => {
     if (!userId) {
       setActivities([]);
       setTotalMinutes(0);
-      setLoading(false);
+      setIsFirstLoad(false);
       return;
     }
 
-    // 🔥 FIX: Só mostra loading na primeira carga
-    const isFirstLoad = activities.length === 0;
-    if (isFirstLoad) {
-      setLoading(true);
-    }
-
-    // Limpa listener anterior
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -107,8 +110,9 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        // 🔥 FIX: Bloqueia scroll durante atualização
-        scrollLockRef.current = true;
+        // aqui salvo a posição do scroll ANTES de processar
+        scrollPositionRef.current = window.scrollY;
+        isUpdatingRef.current = true;
 
         const activitiesData = [];
         let total = 0;
@@ -121,30 +125,20 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           }
         });
 
-        // Ordena por createdAt
         activitiesData.sort((a, b) => {
           if (!a.createdAt || !b.createdAt) return 0;
           return b.createdAt.seconds - a.createdAt.seconds;
         });
 
-        // 🔥 FIX: Atualiza estado apenas se realmente mudou
-        setActivities((prev) => {
-          const hasChanged =
-            prev.length !== activitiesData.length ||
-            JSON.stringify(prev.map((a) => a.id)) !==
-              JSON.stringify(activitiesData.map((a) => a.id));
-
-          return hasChanged ? activitiesData : prev;
-        });
-
+        setActivities(activitiesData);
         setTotalMinutes(total);
-        setLoading(false);
+        setIsFirstLoad(false);
       },
       (error) => {
         console.error('❌ Erro no onSnapshot:', error);
         setActivities([]);
         setTotalMinutes(0);
-        setLoading(false);
+        setIsFirstLoad(false);
       }
     );
 
@@ -159,44 +153,34 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   }, [currentDate, userId]);
 
   // ============================================
-  // AGREGAÇÃO (Otimizada)
+  // AGREGAÇÃO
   // ============================================
   useEffect(() => {
     const agg = aggregateActivities(activities, customActivities, timeToMinutes);
-
-    // 🔥 FIX: Só atualiza se realmente mudou
-    setAggregated((prev) => {
-      const hasChanged = JSON.stringify(prev) !== JSON.stringify(agg);
-      return hasChanged ? agg : prev;
-    });
+    setAggregated(agg);
   }, [activities, customActivities]);
 
   // ============================================
-  // NAVEGAÇÃO DE DATAS
+  // NAVEGAÇÃO
   // ============================================
   function handlePreviousDay() {
-    const newDate = addDays(currentDate, -1);
-    setCurrentDate(newDate);
+    setCurrentDate(addDays(currentDate, -1));
   }
 
   function handleNextDay() {
     if (!isFuture(addDays(currentDate, 1))) {
-      const newDate = addDays(currentDate, 1);
-      setCurrentDate(newDate);
+      setCurrentDate(addDays(currentDate, 1));
     }
   }
 
   function handleToday() {
-    const today = getToday();
-    setCurrentDate(today);
+    setCurrentDate(getToday());
   }
 
   // ============================================
-  // HANDLERS DE ATIVIDADES
+  // HANDLERS
   // ============================================
   async function handleAdjustTime(activityName, minutesDelta) {
-    // 🔥 FIX: Bloqueia scroll antes de ajustar
-    scrollLockRef.current = true;
     await adjustActivityTime(
       activityName,
       minutesDelta,
@@ -209,7 +193,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   }
 
   async function handleDeleteAll(activityName) {
-    scrollLockRef.current = true;
     await deleteAllActivityEntries(
       activityName,
       aggregated,
@@ -220,9 +203,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     );
   }
 
-  // ============================================
-  // MODAL DE DESCRIÇÃO
-  // ============================================
   async function openActivityModal(name) {
     const image = getActivityImage(name);
     const data = aggregated[name];
@@ -260,16 +240,12 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     }
   }
 
-  // ============================================
-  // TIMER
-  // ============================================
   function handleStartTimer(activityName) {
     setSelectedActivity(activityName);
     setShowTimerModal(true);
   }
 
   async function handleTimerComplete(activityName, totalSeconds) {
-    scrollLockRef.current = true;
     await saveTimerActivity(
       activityName,
       totalSeconds,
@@ -315,17 +291,24 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
         .font-cinzel { font-family: 'Cinzel Decorative', serif; }
         .font-inter { font-family: 'Inter', sans-serif; }
         
-        /* 🔥 FIX: Container com estrutura 100% estável */
+        html.scroll-lock {
+          overflow-anchor: none !important;
+          scroll-behavior: auto !important;
+        }
+        
+        /* Container estável */
         .activity-container {
           min-height: 500px;
           position: relative;
+          contain: layout;
         }
         
-        /* 🔥 FIX: Grid ORIGINAL - 4 colunas em telas grandes */
+        /* Grid 4 colunas */
         .activity-grid {
           display: grid;
           grid-template-columns: repeat(1, 1fr);
           gap: 1.5rem;
+          contain: layout;
         }
         
         @media (min-width: 768px) {
@@ -346,29 +329,14 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           }
         }
         
-        /* 🔥 FIX: Loading overlay que não altera layout */
-        .loading-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(26, 26, 26, 0.6);
-          backdrop-filter: blur(2px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        /* 🔥 FIX: Cards com hover sutil e brilho */
+        /* Cards com hover */
         .activity-card {
           transform: translateZ(0);
           backface-visibility: hidden;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
           overflow: hidden;
+          contain: layout style paint;
         }
         
         .activity-card::before {
@@ -378,12 +346,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           left: -100%;
           width: 100%;
           height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(139, 139, 139, 0.1),
-            transparent
-          );
+          background: linear-gradient(90deg, transparent, rgba(139, 139, 139, 0.1), transparent);
           transition: left 0.5s ease;
         }
         
@@ -397,34 +360,40 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           left: 100%;
         }
         
+        /* Efeito de onda */
         @keyframes breathing {
-          0%, 100% { background-position: 0% 50%; opacity: 0.6; }
-          50% { background-position: 100% 50%; opacity: 1; }
+          0%, 100% { 
+            background-position: 0% 50%; 
+            opacity: 0.6; 
+          }
+          50% { 
+            background-position: 100% 50%; 
+            opacity: 1; 
+          }
         }
         
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        
-        .spinner {
-          animation: spin 1s linear infinite;
+        .progress-wave {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.4) 50%,
+            transparent 100%
+          );
+          background-size: 300% 100%;
+          animation: breathing 4s ease-in-out infinite;
         }
       `}</style>
 
-      <div
-        ref={containerRef}
-        className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20"
-      >
-        {/* 🔥 FIX: Container com altura mínima fixa */}
+      <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20">
         <div className="activity-container">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <h2
                 className="text-2xl font-bold text-[#8b8b8b] font-cinzel"
-                style={{
-                  textShadow: '0 0 20px rgba(139, 139, 139, 0.5)',
-                }}
+                style={{ textShadow: '0 0 20px rgba(139, 139, 139, 0.5)' }}
               >
                 {isToday(currentDate) ? 'Atividades de Hoje' : formatDateDisplay(currentDate)}
               </h2>
@@ -460,8 +429,8 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
             </div>
           </div>
 
-          {/* 🔥 FIX: Conteúdo sem loading flash */}
-          {loading && activities.length === 0 ? (
+          {/* Conteúdo */}
+          {isFirstLoad ? (
             <div className="flex items-center justify-center py-24">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#8b8b8b]"></div>
             </div>
@@ -536,6 +505,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                                 }`}
                                 style={{ width: `${Math.min(progress, 100)}%` }}
                               />
+                              {!isComplete && <div className="progress-wave" />}
                             </div>
                             <p className="text-xs text-[#8b8b8b]/70">
                               {isComplete
@@ -602,7 +572,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           )}
         </div>
 
-        {/* Modal de Descrição */}
+        {/* Modal */}
         {openActivity && (
           <motion.div
             initial={{ opacity: 0 }}

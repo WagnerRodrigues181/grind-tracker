@@ -8,7 +8,7 @@
     @apply bg-primary-first text-primary-third;
   }
 
-  /* 🔥 FIX: Previne scroll automático durante updates de atividades */
+  /* Previne scroll automático durante updates de atividades */
   html {
     scroll-behavior: smooth;
   }
@@ -39,7 +39,7 @@
   }
 }
 
-/* 🔥 FIX: Otimizações de performance para prevenir layout shifts */
+/* Otimizações de performance para prevenir layout shifts */
 @layer utilities {
   /* Container estável para listas dinâmicas */
   .stable-container {
@@ -156,7 +156,7 @@
   animation: breathing 4s ease-in-out 1.2s infinite;
 }
 
-/* 🔥 FIX: Otimizações específicas para ActivityList */
+/* Otimizações específicas para ActivityList */
 .activity-list-container {
   min-height: 500px;
   contain: layout style paint;
@@ -184,14 +184,14 @@
   box-shadow: 0 8px 24px rgba(139, 139, 139, 0.2);
 }
 
-/* 🔥 FIX: Previne layout shift durante loading */
+/* Previne layout shift durante loading */
 .prevent-shift {
   min-height: inherit;
   display: flex;
   flex-direction: column;
 }
 
-/* 🔥 FIX: Smooth scroll restoration */
+/* Smooth scroll restoration */
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
@@ -203,19 +203,19 @@ html.updating-content {
   scroll-behavior: auto !important;
 }
 
-/* 🔥 FIX: Otimização para rendering de imagens */
+/* Otimização para rendering de imagens */
 img {
   content-visibility: auto;
   contain-intrinsic-size: 176px 176px; /* 44 * 4 = 176px (w-44) */
 }
 
-/* 🔥 FIX: Previne reflow durante transições */
+/* Previne reflow durante transições */
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 🔥 FIX: Otimização para motion do Framer Motion */
+/* Otimização para motion do Framer Motion */
 [data-framer-motion] {
   will-change: transform, opacity;
   transform: translateZ(0);
