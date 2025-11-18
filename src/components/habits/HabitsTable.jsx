@@ -23,6 +23,19 @@ import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { timeToMinutes } from '../../utils/dateHelpers';
 
+// ============================================
+// 🔍 SISTEMA DE DEBUG COMPLETO
+// ============================================
+const DEBUG = true; // Mude para false para desativar
+function debugLog(section, data) {
+  if (!DEBUG) return;
+  console.group(`🔍 DEBUG [${section}]`);
+  console.log(data);
+  console.trace('Stack trace:');
+  console.groupEnd();
+}
+// ============================================
+
 export default function HabitsTable({ onActivityAdded }) {
   const { currentUser } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -39,7 +52,7 @@ export default function HabitsTable({ onActivityAdded }) {
   const [showPredefinedSelect, setShowPredefinedSelect] = useState(false);
   const [availableActivities, setAvailableActivities] = useState([]);
 
-  // === ESTADO VISUAL (Código 2) ===
+  // === ESTADO VISUAL ===
   const [pulsingDays, setPulsingDays] = useState({});
   const [fireEmoji, setFireEmoji] = useState({});
   const [particles, setParticles] = useState([]);
@@ -47,6 +60,26 @@ export default function HabitsTable({ onActivityAdded }) {
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
+
+  // === DEBUG DO CALENDÁRIO GERADO (AGORA DENTRO DO ESCOPO) ===
+  useEffect(() => {
+    if (DEBUG) {
+      const calendar = generateCalendar(year, month);
+      debugLog('CALENDÁRIO GERADO', {
+        year,
+        month,
+        monthName: getMonthName(month),
+        weeks: calendar.weeks.map((week, idx) => ({
+          weekNumber: idx + 1,
+          days: week.map((d) => ({
+            day: d.day,
+            belongsTo: d.belongsTo,
+          })),
+        })),
+      });
+    }
+  }, [year, month]);
+  // ============================================
 
   // Carrega atividades do localStorage
   useEffect(() => {
@@ -183,13 +216,56 @@ export default function HabitsTable({ onActivityAdded }) {
     }
   }
 
-  async function handleToggleDay(habitName, day) {
+  // ============================================
+  // Na função handleToggleDay - SUBSTITUA COMPLETAMENTE
+  // ============================================
+  async function handleToggleDay(habitName, cellData) {
+    debugLog('handleToggleDay - INÍCIO', {
+      habitName,
+      cellData,
+      currentYear: year,
+      currentMonth: month,
+      currentDateState: currentDate,
+    });
+    if (!habitName || !currentUser?.uid) {
+      console.warn('⚠️ Hábito ou usuário inválido');
+      return;
+    }
     try {
-      const dayKey = String(day).padStart(2, '0');
-      const currentValue = currentMonthTracking[habitName]?.[dayKey] === true;
-      const pulseKey = `${habitName}-${day}`;
+      // Determina ano, mês e dia corretos baseado em belongsTo
+      let targetYear, targetMonth, targetDay;
 
-      // Animação de pulso
+      if (cellData.belongsTo === 'current') {
+        targetYear = year;
+        targetMonth = month;
+        targetDay = cellData.day;
+      } else if (cellData.belongsTo === 'prev') {
+        const { prevYear, prevMonth } = getAdjacentMonths(year, month);
+        targetYear = prevYear;
+        targetMonth = prevMonth;
+        targetDay = cellData.day;
+      } else if (cellData.belongsTo === 'next') {
+        const { nextYear, nextMonth } = getAdjacentMonths(year, month);
+        targetYear = nextYear;
+        targetMonth = nextMonth;
+        targetDay = cellData.day;
+      }
+      debugLog('handleToggleDay - DATA CALCULADA', {
+        belongsTo: cellData.belongsTo,
+        targetYear,
+        targetMonth,
+        targetDay,
+        dateString: `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`,
+      });
+      const dayKey = String(targetDay).padStart(2, '0');
+      const currentValue = currentMonthTracking[habitName]?.[dayKey] === true;
+      const pulseKey = `${habitName}-${targetDay}`;
+      debugLog('handleToggleDay - ESTADO ATUAL', {
+        dayKey,
+        currentValue,
+        willBeChecked: !currentValue,
+        pulseKey,
+      });
       setPulsingDays((prev) => ({ ...prev, [pulseKey]: true }));
       setTimeout(
         () =>
@@ -200,29 +276,24 @@ export default function HabitsTable({ onActivityAdded }) {
           }),
         600
       );
-
-      // Partículas ao marcar
       if (!currentValue) {
         const newParticles = Array.from({ length: 4 }, (_, i) => ({
           id: `${pulseKey}-${i}-${Date.now()}`,
           angle: i * 90 + 45,
           habitName,
-          day,
+          day: targetDay,
         }));
         setParticles((prev) => [...prev, ...newParticles]);
         setTimeout(() => {
           setParticles((prev) => prev.filter((p) => !newParticles.some((np) => np.id === p.id)));
         }, 800);
-
-        // Fogo se completar o dia
         const totalHabits = habits.length;
         const completedAfterToggle = habits.filter((h) => {
           if (h === habitName) return true;
           return currentMonthTracking[h]?.[dayKey] === true;
         }).length;
-
         if (completedAfterToggle === totalHabits) {
-          const fireKey = `fire-${day}`;
+          const fireKey = `fire-${targetDay}`;
           setFireEmoji((prev) => ({ ...prev, [fireKey]: true }));
           setTimeout(() => {
             setFireEmoji((prev) => {
@@ -233,8 +304,6 @@ export default function HabitsTable({ onActivityAdded }) {
           }, 1500);
         }
       }
-
-      // UI otimista
       setCurrentMonthTracking((prev) => ({
         ...prev,
         [habitName]: {
@@ -242,41 +311,86 @@ export default function HabitsTable({ onActivityAdded }) {
           [dayKey]: !currentValue,
         },
       }));
-
-      // Firebase
-      await toggleHabitDay(currentUser.uid, year, month, day, habitName);
-
-      // Registrar/desregistrar atividade
+      debugLog('handleToggleDay - ANTES toggleHabitDay', {
+        userId: currentUser.uid,
+        targetYear,
+        targetMonth,
+        targetDay,
+        habitName,
+      });
+      await toggleHabitDay(currentUser.uid, targetYear, targetMonth, targetDay, habitName);
+      debugLog('handleToggleDay - DEPOIS toggleHabitDay', {
+        success: true,
+        willRegisterActivity: !currentValue,
+      });
       if (!currentValue) {
-        await registerHabitAsActivity(habitName, year, month, day);
-        onActivityAdded?.();
+        debugLog('handleToggleDay - REGISTRANDO ATIVIDADE', {
+          habitName,
+          targetYear,
+          targetMonth,
+          targetDay,
+        });
+
+        await registerHabitAsActivity(habitName, targetYear, targetMonth, targetDay);
+        onActivityAdded?.(habitName);
+
+        debugLog('handleToggleDay - ATIVIDADE REGISTRADA', { success: true });
       } else {
-        await removeHabitActivity(habitName, year, month, day);
+        debugLog('handleToggleDay - REMOVENDO ATIVIDADE', {
+          habitName,
+          targetYear,
+          targetMonth,
+          targetDay,
+        });
+
+        await removeHabitActivity(habitName, targetYear, targetMonth, targetDay);
+        onActivityAdded?.();
+
+        debugLog('handleToggleDay - ATIVIDADE REMOVIDA', { success: true });
       }
     } catch (error) {
-      console.error('Erro ao toggle dia:', error);
+      console.error('❌ Erro em handleToggleDay:', error);
+      debugLog('handleToggleDay - ERRO', {
+        error: error.message,
+        stack: error.stack,
+      });
+
       const tracking = await getMonthTracking(currentUser.uid, year, month);
       setCurrentMonthTracking(tracking);
     }
   }
 
+  // ============================================
+  // Na função registerHabitAsActivity - SUBSTITUA COMPLETAMENTE
+  // ============================================
   async function registerHabitAsActivity(habitName, year, month, day) {
-    console.log('🔥 REGISTRANDO HÁBITO COMO ATIVIDADE');
-    console.log('UID:', currentUser.uid);
-    console.log('Coleção:', `activities/${currentUser.uid}/entries`);
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+    debugLog('registerHabitAsActivity - INÍCIO', {
+      habitName,
+      year,
+      month,
+      day,
+      dateStr,
+      userId: currentUser.uid,
+    });
     try {
       const duration = await getHabitDuration(currentUser.uid, habitName);
-      if (!duration) return;
 
+      debugLog('registerHabitAsActivity - DURAÇÃO OBTIDA', {
+        duration,
+        habitName,
+      });
+
+      if (!duration) {
+        console.warn('⚠️ Duração não encontrada para o hábito:', habitName);
+        return;
+      }
       const minutes = timeToMinutes(duration);
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
       const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
       const custom = customActivities.find((c) => c.name === habitName);
       const targetMinutes = custom?.target ? timeToMinutes(custom.target) : null;
-
-      await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
+      const activityData = {
         activity: habitName,
         minutes,
         targetMinutes,
@@ -284,31 +398,94 @@ export default function HabitsTable({ onActivityAdded }) {
         createdAt: serverTimestamp(),
         userEmail: currentUser.email,
         userId: currentUser.uid,
+      };
+      debugLog('registerHabitAsActivity - DADOS DA ATIVIDADE', {
+        activityData,
+        collectionPath: `activities/${currentUser.uid}/entries`,
+      });
+      const docRef = await addDoc(
+        collection(db, 'activities', currentUser.uid, 'entries'),
+        activityData
+      );
+      debugLog('registerHabitAsActivity - SUCESSO', {
+        docId: docRef.id,
+        path: docRef.path,
+        dateRegistered: dateStr,
+      });
+      console.log('✅ Atividade registrada com sucesso!', {
+        habit: habitName,
+        date: dateStr,
+        docId: docRef.id,
       });
     } catch (error) {
-      console.error('Erro ao registrar atividade:', error);
+      console.error('❌ Erro ao registrar atividade:', error);
+      debugLog('registerHabitAsActivity - ERRO', {
+        error: error.message,
+        stack: error.stack,
+        habitName,
+        dateStr,
+      });
       throw error;
     }
   }
 
+  // ============================================
+  // Na função removeHabitActivity - SUBSTITUA COMPLETAMENTE
+  // ============================================
   async function removeHabitActivity(habitName, year, month, day) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    debugLog('removeHabitActivity - INÍCIO', {
+      habitName,
+      year,
+      month,
+      day,
+      dateStr,
+      userId: currentUser.uid,
+    });
     try {
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const q = query(
         collection(db, 'activities', currentUser.uid, 'entries'),
         where('activity', '==', habitName),
         where('date', '==', dateStr)
       );
-
+      debugLog('removeHabitActivity - QUERY', {
+        collectionPath: `activities/${currentUser.uid}/entries`,
+        whereActivity: habitName,
+        whereDate: dateStr,
+      });
       const snapshot = await getDocs(q);
+
+      debugLog('removeHabitActivity - DOCUMENTOS ENCONTRADOS', {
+        count: snapshot.docs.length,
+        docs: snapshot.docs.map((d) => ({
+          id: d.id,
+          data: d.data(),
+        })),
+      });
       const deletePromises = snapshot.docs.map((docSnap) =>
         deleteDoc(doc(db, 'activities', currentUser.uid, 'entries', docSnap.id))
       );
-      await Promise.all(deletePromises);
 
+      await Promise.all(deletePromises);
+      debugLog('removeHabitActivity - SUCESSO', {
+        deletedCount: snapshot.docs.length,
+        dateStr,
+      });
+      console.log('✅ Atividade(s) removida(s) com sucesso!', {
+        habit: habitName,
+        date: dateStr,
+        count: snapshot.docs.length,
+      });
       onActivityAdded?.();
     } catch (error) {
-      console.error('Erro ao remover atividade:', error);
+      console.error('❌ Erro ao remover atividade:', error);
+      debugLog('removeHabitActivity - ERRO', {
+        error: error.message,
+        stack: error.stack,
+        habitName,
+        dateStr,
+      });
       throw error;
     }
   }
@@ -366,26 +543,47 @@ export default function HabitsTable({ onActivityAdded }) {
           to { transform: rotate(360deg); }
         }
         
-        @keyframes glow-pulse {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 1; }
-        }
-        
         .pulse-ritual { animation: pulse-ritual 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
         .particle-effect { 
           position: absolute; width: 6px; height: 6px; background: #8b8b8b; 
-          border-radius: 50%; pointer-events: none; animation: particle-fly 0.8s cubic-bezier(0.4, 0, 0. | 1) forwards; 
+          border-radius: 50%; pointer-events: none; animation: particle-fly 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; 
           box-shadow: 0 0 8px #8b8b8b; 
         }
         .fire-emoji { position: absolute; font-size: 20px; animation: fire-appear 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; z-index: 50; }
         .rotating-ring { animation: rotate-ring 8s linear infinite; }
         .diagonal-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(139,139,139,0.03) 10px, rgba(139,139,139,0.03) 20px); }
-        .btn-hover-scale { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-hover-scale:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(139,139,139,0.3); }
         .habit-row:hover .habit-name { text-shadow: 0 0 12px rgba(139,139,139,0.8); }
         .trash-hover:hover { transform: rotate(15deg) scale(1.1); filter: drop-shadow(0 0 6px rgba(239,68,68,0.6)); }
         .plus-rotate:hover { transform: rotate(90deg); }
         .arrow-pulse { animation: pulse-ritual 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        .scroll-container {
+          scrollbar-width: thin;
+          scrollbar-color: #8b8b8b #1a1a1a;
+        }
+        .scroll-container::-webkit-scrollbar {
+          width: 6px;
+        }
+        .scroll-container::-webkit-scrollbar-track {
+          background: #1a1a1a;
+          border-radius: 3px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+          background: #8b8b8b;
+          border-radius: 3px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #a0a0a0;
+        }
+
+        .activity-card {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .activity-card:hover {
+          background-color: #2a2a2a !important;
+          border-color: #8b8b8b !important;
+          box-shadow: 0 4px 16px rgba(139,139,139,0.2);
+        }
       `}</style>
 
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter relative">
@@ -418,7 +616,7 @@ export default function HabitsTable({ onActivityAdded }) {
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="ml-2 p-2 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/40 btn-hover-scale"
+                className="ml-2 p-2 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/40"
                 title="Adicionar hábito"
               >
                 <Plus className="w-5 h-5 plus-rotate" />
@@ -519,7 +717,7 @@ export default function HabitsTable({ onActivityAdded }) {
                                 ))}
                               <button
                                 onClick={
-                                  isCurrent ? () => handleToggleDay(habit, cellData.day) : undefined
+                                  isCurrent ? () => handleToggleDay(habit, cellData) : undefined
                                 }
                                 disabled={!isCurrent}
                                 className={`w-5 h-5 rounded-full transition-all duration-200 relative ${isPulsing ? 'pulse-ritual' : ''} ${
@@ -591,7 +789,7 @@ export default function HabitsTable({ onActivityAdded }) {
           </div>
         </div>
 
-        {/* MODAL */}
+        {/* MODAL COM HOVER CORRIGIDO E SCROLL MELHORADO */}
         <AnimatePresence>
           {showAddModal && (
             <motion.div
@@ -625,7 +823,7 @@ export default function HabitsTable({ onActivityAdded }) {
                   <>
                     <button
                       onClick={() => setShowPredefinedSelect(true)}
-                      className="w-full mb-6 p-4 bg-[#252525] hover:bg-[#2a2a2a] text-[#8b8b8b] rounded-xl transition-all duration-300 font-semibold border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 btn-hover-scale"
+                      className="w-full mb-6 p-4 bg-[#252525] hover:bg-[#2a2a2a] text-[#8b8b8b] rounded-xl transition-all duration-300 font-semibold border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50"
                     >
                       Escolher de Atividades Pré-definidas
                     </button>
@@ -677,7 +875,7 @@ export default function HabitsTable({ onActivityAdded }) {
                       </button>
                       <button
                         onClick={handleAddHabit}
-                        className="flex-1 p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40 btn-hover-scale"
+                        className="flex-1 p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40"
                       >
                         Adicionar
                       </button>
@@ -687,13 +885,17 @@ export default function HabitsTable({ onActivityAdded }) {
                   <>
                     <button
                       onClick={() => setShowPredefinedSelect(false)}
-                      className="mb-6 text-sm text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition-colors flex items-center gap-2"
+                      className="mb-4 text-sm text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition-colors flex items-center gap-2"
                     >
                       ← Voltar
                     </button>
-                    <div className="space-y-3 mb-6">
+
+                    <div
+                      className="max-h-80 overflow-y-auto mb-6 space-y-2 scroll-container pr-3"
+                      style={{ scrollBehavior: 'smooth' }}
+                    >
                       {availableActivities.length === 0 ? (
-                        <p className="text-sm text-[#8b8b8b]/60 text-center py-4">
+                        <p className="text-sm text-[#8b8b8b]/60 text-center py-8">
                           Nenhuma atividade pré-definida.
                         </p>
                       ) : (
@@ -701,10 +903,12 @@ export default function HabitsTable({ onActivityAdded }) {
                           <button
                             key={activity.name}
                             onClick={() => handleAddHabitFromPredefined(activity)}
-                            className="w-full p-4 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl text-left transition-all duration-300 border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 btn-hover-scale"
+                            className="activity-card w-full p-3 bg-[#1a1a1a] rounded-xl text-left border border-[#8b8b8b]/30 flex flex-col group"
                           >
-                            <div className="font-semibold text-[#8b8b8b] mb-1">{activity.name}</div>
-                            <div className="text-xs text-[#8b8b8b]/60">
+                            <div className="font-semibold text-[#8b8b8b] group-hover:text-[#a0a0a0] transition-colors">
+                              {activity.name}
+                            </div>
+                            <div className="text-xs text-[#8b8b8b]/60 mt-1 group-hover:text-[#8b8b8b]/80 transition-colors">
                               Duração: {activity.time}
                               {activity.target && ` → Meta: ${activity.target}`}
                             </div>
@@ -712,6 +916,7 @@ export default function HabitsTable({ onActivityAdded }) {
                         ))
                       )}
                     </div>
+
                     <button
                       onClick={() => {
                         setShowAddModal(false);
@@ -777,15 +982,46 @@ function generateCalendar(year, month) {
     const week = [];
     for (let d = 0; d < 7; d++) {
       if (dayCounter < 1) {
-        week.push({ day: daysInPrevMonth + dayCounter, belongsTo: 'prev' });
+        // Dias do mês anterior
+        week.push({
+          day: daysInPrevMonth + dayCounter,
+          belongsTo: 'prev',
+        });
       } else if (dayCounter <= daysInMonth) {
-        week.push({ day: dayCounter, belongsTo: 'current' });
+        // Dias do mês atual
+        week.push({
+          day: dayCounter,
+          belongsTo: 'current',
+        });
       } else {
-        week.push({ day: dayCounter - daysInMonth, belongsTo: 'next' });
+        // Dias do próximo mês
+        week.push({
+          day: dayCounter - daysInMonth,
+          belongsTo: 'next',
+        });
       }
       dayCounter++;
     }
     weeks.push(week);
+  }
+
+  // ===== DEBUG: Vamos ver o que está sendo gerado =====
+  if (DEBUG) {
+    debugLog('generateCalendar - RESULTADO', {
+      year,
+      month,
+      monthName: getMonthName(month),
+      daysInMonth,
+      firstDayWeekday: startDayOfWeek,
+      lastDayWeekday: endDayOfWeek,
+      totalWeeks: weeks.length,
+      firstWeek: weeks[0],
+      lastWeek: weeks[weeks.length - 1],
+      allDays: weeks
+        .flat()
+        .map((d) => `${d.day}(${d.belongsTo})`)
+        .join(', '),
+    });
   }
 
   return { weeks };

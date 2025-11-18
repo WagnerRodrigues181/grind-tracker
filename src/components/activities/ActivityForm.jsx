@@ -62,13 +62,12 @@ export default function ActivityForm({ onActivityAdded }) {
 
     try {
       setLoading(true);
-      console.log('🔥 SALVANDO ATIVIDADE PARA UID:', currentUser.uid);
+      console.log('SALVANDO ATIVIDADE PARA UID:', currentUser.uid);
       console.log('Coleção:', `activities/${currentUser.uid}/entries`);
 
       const minutes = timeToMinutes(time);
       const targetMinutes = targetTime ? timeToMinutes(targetTime) : null;
 
-      // SALVA NA SUBCOLEÇÃO DO USUÁRIO (CORRETO)
       await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         activity: activityName,
         minutes,
@@ -119,6 +118,21 @@ export default function ActivityForm({ onActivityAdded }) {
           transform: scale(1.05);
           box-shadow: 0 8px 24px rgba(139, 139, 139, 0.3);
         }
+        /* Scroll personalizado — elegante e funcional */
+        .scroll-container::-webkit-scrollbar {
+          width: 6px;
+        }
+        .scroll-container::-webkit-scrollbar-track {
+          background: #1a1a1a;
+          border-radius: 3px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+          background: #8b8b8b;
+          border-radius: 3px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #a0a0a0;
+        }
       `}</style>
 
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20">
@@ -134,7 +148,7 @@ export default function ActivityForm({ onActivityAdded }) {
           <button
             type="button"
             onClick={() => setShowMenu(true)}
-            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b]² transition"
+            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition"
           >
             <Settings className="w-4 h-4" />
             Gerenciar
@@ -239,7 +253,7 @@ export default function ActivityForm({ onActivityAdded }) {
           </button>
         </form>
 
-        {/* MODAL DE GERENCIAR COM MESMA ESTÉTICA DO HABITSTABLE */}
+        {/* MODAL DE GERENCIAR COM SCROLL + ESTÉTICA TRADICIONAL */}
         <AnimatePresence>
           {showMenu && (
             <motion.div
@@ -271,7 +285,8 @@ export default function ActivityForm({ onActivityAdded }) {
                   Atividades Personalizadas
                 </h3>
 
-                <div className="max-h-60 overflow-y-auto mb-6 space-y-2">
+                {/* SCROLL ADICIONADO AQUI — ORDEM RESTAURADA */}
+                <div className="max-h-60 overflow-y-auto mb-6 space-y-2 scroll-container pr-2">
                   {customActivities.length === 0 ? (
                     <p className="text-sm text-[#8b8b8b]/60 text-center py-4">
                       Nenhuma atividade criada.

@@ -26,6 +26,7 @@ export default function ProfileCard({ onClose }) {
   const [animateStats, setAnimateStats] = useState(false);
   const [isAvgExpanded, setIsAvgExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(''); // Novo: pra mostrar erros no UI
 
   // Estados de edição
   const [isEditing, setIsEditing] = useState(false);
@@ -42,7 +43,13 @@ export default function ProfileCard({ onClose }) {
   async function loadUserData() {
     try {
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) {
+        setErrorMessage('Nenhum usuário logado. Loga de novo, guerreiro.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('UID atual:', user.uid); // DEBUG: Confirma UID
 
       const profileData = {
         displayName: user.displayName || 'Usuário',
@@ -62,6 +69,7 @@ export default function ProfileCard({ onClose }) {
       setTimeout(() => setAnimateStats(true), 100);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+      setErrorMessage('Erro ao puxar dados. Checa o console e o Firestore.');
       setLoading(false);
     }
   }
@@ -71,6 +79,15 @@ export default function ProfileCard({ onClose }) {
       const activitiesRef = collection(db, 'activities', userId, 'entries');
       const q = query(activitiesRef, orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
+
+      console.log('Docs encontrados para UID', userId, ':', snapshot.size); // DEBUG
+      if (snapshot.size > 0) {
+        snapshot.docs.forEach((doc) => {
+          console.log('Doc ID:', doc.id, 'Data:', doc.data()); // DEBUG: Mostra conteúdos
+        });
+      } else {
+        console.warn('Nenhuma atividade encontrada. Verifica se salvou certo.');
+      }
 
       if (snapshot.empty) {
         return {
@@ -253,6 +270,10 @@ export default function ProfileCard({ onClose }) {
       return { level: 'Advanced', color: 'from-green-500 to-emerald-600', icon: '💪', next: 250 };
     return { level: 'Beginner', color: 'from-gray-500 to-gray-600', icon: '🌱', next: 100 };
   };
+
+  if (errorMessage) {
+    return <div className="p-8 text-red-500">{errorMessage}</div>;
+  }
 
   if (loading) {
     return (

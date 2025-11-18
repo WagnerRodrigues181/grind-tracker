@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LogOut, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDateDisplay, getToday } from '../../utils/dateHelpers';
+import TimerDisplay from '../timer/TimerDisplay';
 
 export default function Header({ setShowProfile }) {
   const { currentUser, logout } = useAuth();
@@ -96,7 +97,7 @@ export default function Header({ setShowProfile }) {
                 aria-label="Página inicial"
               >
                 <img
-                  src="/favicon-96x96.png"
+                  src="/android-chrome-512x512.png"
                   alt="Grind Tracker"
                   className={`object-cover transition-all duration-300 ${
                     isScrolled ? 'w-9 h-9' : 'w-10 h-10'
@@ -117,110 +118,115 @@ export default function Header({ setShowProfile }) {
               </button>
             </div>
 
-            {/* Menu do usuário */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsMenuOpen(!isMenuOpen);
-                  }
-                }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-accent/10 hover:bg-primary-accent/20 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-accent/50 active:scale-95 group"
-                aria-label={`Menu do usuário ${displayName}`}
-                aria-expanded={isMenuOpen}
-                aria-haspopup="true"
-              >
-                {userPhoto ? (
-                  <img
-                    src={userPhoto}
-                    alt={displayName}
-                    className="w-8 h-8 rounded-full object-cover border-2 border-primary-accent/30 avatar-hover group-hover:scale-110 transition-all"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      const fallback = e.target.parentElement.querySelector('.avatar-fallback');
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <div
-                  className={`avatar-fallback w-8 h-8 rounded-full bg-primary-accent flex items-center justify-center text-primary-first font-bold text-sm group-hover:scale-110 transition-transform ${
-                    userPhoto ? 'hidden' : ''
-                  }`}
-                  style={{ fontFamily: 'Cinzel, serif' }}
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-                <span className="hidden sm:inline text-sm font-medium text-primary-accent">
-                  {displayName}
-                </span>
-                <svg
-                  className={`w-4 h-4 text-primary-accent/70 transition-transform duration-200 ${
-                    isMenuOpen ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
+            {/* Timer Display + Menu do usuário */}
+            <div className="flex items-center gap-4">
+              <TimerDisplay />
 
-              {/* Dropdown menu */}
-              {isMenuOpen && (
-                <div
-                  className="absolute right-0 mt-2 w-56 bg-primary-second rounded-xl shadow-2xl border border-primary-accent/10 overflow-hidden animate-fadeIn"
-                  role="menu"
-                  aria-orientation="vertical"
+              {/* Menu do usuário */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIsMenuOpen(!isMenuOpen);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-accent/10 hover:bg-primary-accent/20 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-accent/50 active:scale-95 group"
+                  aria-label={`Menu do usuário ${displayName}`}
+                  aria-expanded={isMenuOpen}
+                  aria-haspopup="true"
                 >
-                  <div className="px-4 py-3 bg-primary-accent/5 border-b border-primary-accent/10">
-                    <p className="text-xs text-primary-accent/60 font-medium mb-1">Logado como</p>
-                    <p
-                      className="text-sm font-bold text-primary-accent truncate"
-                      style={{ fontFamily: 'Cinzel, serif' }}
-                    >
-                      {displayName}
-                    </p>
-                    <p className="text-xs text-primary-accent/50 truncate mt-0.5">{userEmail}</p>
-                  </div>
-
-                  <div className="py-2">
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setShowProfile(true);
+                  {userPhoto ? (
+                    <img
+                      src={userPhoto}
+                      alt={displayName}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-primary-accent/30 avatar-hover group-hover:scale-110 transition-all"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const fallback = e.target.parentElement.querySelector('.avatar-fallback');
+                        if (fallback) fallback.style.display = 'flex';
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-primary-accent hover:bg-primary-accent/10 transition-colors focus:outline-none focus:bg-primary-accent/10"
-                      role="menuitem"
-                    >
-                      <User className="w-4 h-4 text-primary-accent/70" />
-                      <span>Ver Perfil</span>
-                    </button>
+                    />
+                  ) : null}
+                  <div
+                    className={`avatar-fallback w-8 h-8 rounded-full bg-primary-accent flex items-center justify-center text-primary-first font-bold text-sm group-hover:scale-110 transition-transform ${
+                      userPhoto ? 'hidden' : ''
+                    }`}
+                    style={{ fontFamily: 'Cinzel, serif' }}
+                  >
+                    {displayName.charAt(0).toUpperCase()}
                   </div>
+                  <span className="hidden sm:inline text-sm font-medium text-primary-accent">
+                    {displayName}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 text-primary-accent/70 transition-transform duration-200 ${
+                      isMenuOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
 
-                  <div className="border-t border-primary-accent/10"></div>
+                {/* Dropdown menu */}
+                {isMenuOpen && (
+                  <div
+                    className="absolute right-0 mt-2 w-56 bg-primary-second rounded-xl shadow-2xl border border-primary-accent/10 overflow-hidden animate-fadeIn"
+                    role="menu"
+                    aria-orientation="vertical"
+                  >
+                    <div className="px-4 py-3 bg-primary-accent/5 border-b border-primary-accent/10">
+                      <p className="text-xs text-primary-accent/60 font-medium mb-1">Logado como</p>
+                      <p
+                        className="text-sm font-bold text-primary-accent truncate"
+                        style={{ fontFamily: 'Cinzel, serif' }}
+                      >
+                        {displayName}
+                      </p>
+                      <p className="text-xs text-primary-accent/50 truncate mt-0.5">{userEmail}</p>
+                    </div>
 
-                  <div className="py-2">
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        handleLogout();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors focus:outline-none focus:bg-red-500/10"
-                      role="menuitem"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Sair</span>
-                    </button>
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setShowProfile(true);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-primary-accent hover:bg-primary-accent/10 transition-colors focus:outline-none focus:bg-primary-accent/10"
+                        role="menuitem"
+                      >
+                        <User className="w-4 h-4 text-primary-accent/70" />
+                        <span>Ver Perfil</span>
+                      </button>
+                    </div>
+
+                    <div className="border-t border-primary-accent/10"></div>
+
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors focus:outline-none focus:bg-red-500/10"
+                        role="menuitem"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Sair</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
