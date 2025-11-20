@@ -17,8 +17,8 @@ const timeToMinutes = (time) => {
 
 export default function ActivityForm({
   onActivityAdded,
-  customActivities = [], // ← vem do Dashboard
-  loadingActivities = false, // ← vem do Dashboard
+  customActivities = [],
+  loadingActivities = false,
 }) {
   const { currentUser } = useAuth();
   const [selectedActivity, setSelectedActivity] = useState('');
@@ -31,7 +31,6 @@ export default function ActivityForm({
   const [success, setSuccess] = useState('');
   const [showMenu, setShowMenu] = useState(false);
 
-  // === SELECIONA TEMPO/META AUTOMÁTICO ===
   function handleSelectActivity(value) {
     setSelectedActivity(value);
     const found = customActivities.find((a) => a.name === value);
@@ -46,7 +45,6 @@ export default function ActivityForm({
     }
   }
 
-  // === SUBMISSÃO ===
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -57,7 +55,6 @@ export default function ActivityForm({
     const activityName = selectedActivity === 'Outra' ? customActivity : selectedActivity;
     if (!activityName?.trim()) return setError('Selecione ou digite uma atividade');
 
-    // BINÁRIO
     if (activityType === 'binary') {
       try {
         setLoading(true);
@@ -80,7 +77,6 @@ export default function ActivityForm({
       return;
     }
 
-    // TIMED
     if (!time || !/^([0-9]{1,2}):([0-5][0-9])$/.test(time)) {
       return setError('Tempo inválido (use HH:MM)');
     }
@@ -120,7 +116,6 @@ export default function ActivityForm({
     setTimeout(() => setSuccess(''), 3000);
   }
 
-  // === ADICIONAR/REMOVER TEMPLATE ===
   async function handleAddCustom(name, time, target, type) {
     if (!name.trim()) return;
     try {
@@ -170,7 +165,6 @@ export default function ActivityForm({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* SELECT DE ATIVIDADES */}
           <div>
             <label className="block text-sm font-medium text-[#8b8b8b] mb-1">Atividade</label>
             {loadingActivities ? (
@@ -195,7 +189,6 @@ export default function ActivityForm({
             )}
           </div>
 
-          {/* CAMPO "OUTRA" */}
           {selectedActivity === 'Outra' && (
             <>
               <input
@@ -212,22 +205,21 @@ export default function ActivityForm({
                   onClick={() => setActivityType('timed')}
                   className={`p-4 rounded-xl border-2 ${activityType === 'timed' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b8b]/30'}`}
                 >
-                  <Clock className="w-5 h-5 mx-auto mb-2" />{' '}
+                  <Clock className="w-5 h-5 mx-auto mb-2" />
                   <span className="text-sm">Com Tempo</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActivityType('binary')}
-                  className={`p-4 rounded-xl border-2 ${activityType === 'binary' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b]/30'}`}
+                  className={`p-4 rounded-xl border-2 ${activityType === 'binary' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b8b]/30'}`}
                 >
-                  <CheckSquare className="w-5 h-5 mx-auto mb-2" />{' '}
+                  <CheckSquare className="w-5 h-5 mx-auto mb-2" />
                   <span className="text-sm">Check Diário</span>
                 </button>
               </div>
             </>
           )}
 
-          {/* TEMPO (apenas timed) */}
           {activityType === 'timed' && (
             <>
               <input
@@ -273,7 +265,7 @@ export default function ActivityForm({
               </>
             ) : (
               <>
-                <Plus className="w-5 h-5" />{' '}
+                <Plus className="w-5 h-5" />
                 {activityType === 'binary' ? 'Marcar como Feito' : 'Adicionar'}
               </>
             )}
@@ -288,9 +280,11 @@ export default function ActivityForm({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              onClick={() => setShowMenu(false)} // ← FECHA AO CLICAR FORA
             >
               <motion.div
-                className="bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl p-8 w-full max-w-md border-2 border-[#8b8b8b]/30 max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()} // ← IMPEDIR FECHAR AO CLICAR DENTRO
+                className="bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl p-8 w-full max-w-md border-2 border-[#8b8b8b]/30 max-h-[90vh] overflow-y-auto relative"
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.9, y: 20 }}

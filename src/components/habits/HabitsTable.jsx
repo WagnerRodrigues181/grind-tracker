@@ -378,89 +378,50 @@ export default function HabitsTable({ onActivityAdded }) {
     }
   }
 
-  // ============================================
-  // Na função registerHabitAsActivity - SUBSTITUA COMPLETAMENTE
-  // ============================================
   async function registerHabitAsActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    debugLog('registerHabitAsActivity - INÍCIO', {
-      habitName,
-      year,
-      month,
-      day,
-      dateStr,
-      userId: currentUser.uid,
-    });
     try {
-      const duration = await getHabitDuration(currentUser.uid, habitName);
+      const matchingActivity = availableActivities.find((a) => a.name === habitName);
 
-      debugLog('registerHabitAsActivity - DURAÇÃO OBTIDA', {
-        duration,
-        habitName,
-      });
-
-      if (!duration) {
-        console.warn('⚠️ Duração não encontrada para o hábito:', habitName);
+      // Caso 1: Atividade binary (check) → salva tipo e completed
+      if (matchingActivity?.type === 'binary') {
+        await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
+          activity: habitName,
+          type: 'binary',
+          completed: true,
+          date: dateStr,
+          createdAt: serverTimestamp(),
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+        });
         return;
       }
-      const minutes = timeToMinutes(duration);
 
-      // Busca a atividade correspondente no Firestore
-      const matchingActivity = availableActivities.find((a) => a.name === habitName);
+      // Caso 2: Atividade timed → salva minutos normalmente
+      const duration = await getHabitDuration(currentUser.uid, habitName);
+      if (!duration) return;
+
+      const minutes = timeToMinutes(duration);
       const targetMinutes = matchingActivity?.target
         ? timeToMinutes(matchingActivity.target)
         : null;
 
-      const activityData = {
+      await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         activity: habitName,
-        minutes,
+        type: 'timed', // ← GARANTE que tem type
+        minutes, // ← sempre número
         targetMinutes,
         date: dateStr,
         createdAt: serverTimestamp(),
-        userEmail: currentUser.email,
         userId: currentUser.uid,
-      };
-      debugLog('registerHabitAsActivity - DADOS DA ATIVIDADE', {
-        activityData,
-        collectionPath: `activities/${currentUser.uid}/entries`,
-        matchingActivity: matchingActivity
-          ? {
-              id: matchingActivity.id,
-              name: matchingActivity.name,
-              target: matchingActivity.target,
-            }
-          : null,
-      });
-      const docRef = await addDoc(
-        collection(db, 'activities', currentUser.uid, 'entries'),
-        activityData
-      );
-      debugLog('registerHabitAsActivity - SUCESSO', {
-        docId: docRef.id,
-        path: docRef.path,
-        dateRegistered: dateStr,
-      });
-      console.log('✅ Atividade registrada com sucesso!', {
-        habit: habitName,
-        date: dateStr,
-        docId: docRef.id,
+        userEmail: currentUser.email,
       });
     } catch (error) {
-      console.error('❌ Erro ao registrar atividade:', error);
-      debugLog('registerHabitAsActivity - ERRO', {
-        error: error.message,
-        stack: error.stack,
-        habitName,
-        dateStr,
-      });
-      throw error;
+      console.error('Erro ao registrar atividade do hábito:', error);
     }
   }
 
-  // ============================================
-  // Na função removeHabitActivity - SUBSTITUA COMPLETAMENTE
-  // ============================================
   async function removeHabitActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 

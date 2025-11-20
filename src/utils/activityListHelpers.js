@@ -64,22 +64,40 @@ export function getActivityImage(activityName) {
 
 // ============================================
 // AGREGAÇÃO DE ATIVIDADES
-// Agrupa atividades por nome e calcula totais
 // ============================================
 export function aggregateActivities(activities, customActivities, timeToMinutes) {
   const agg = {};
 
   activities.forEach((act) => {
-    if (!agg[act.activity]) {
-      const custom = customActivities.find((c) => c.name === act.activity);
-      agg[act.activity] = {
+    const name = act.activity;
+
+    // Cria entrada se não existir
+    if (!agg[name]) {
+      // Busca o template pra saber o tipo (prioridade máxima)
+      const template = customActivities.find((c) => c.name === name);
+      const type = template?.type || act.type || 'timed'; // fallback seguro
+
+      agg[name] = {
+        name,
+        type,
         total: 0,
-        target: custom?.target ? timeToMinutes(custom.target) : act.targetMinutes || null,
+        target: template?.target ? timeToMinutes(template.target) : act.targetMinutes || null,
         entries: [],
       };
     }
-    agg[act.activity].total += act.minutes;
-    agg[act.activity].entries.push(act);
+
+    // REGRAS DE SOMA:
+    if (agg[name].type === 'binary') {
+      // Para binary: não soma tempo, apenas marca como concluído
+      // O total fica 0 mas entries.length > 0 indica conclusão
+      agg[name].total = 0;
+    } else if (act.minutes != null && typeof act.minutes === 'number') {
+      // Só soma se for timed e tiver minutos válidos
+      agg[name].total += act.minutes;
+    }
+    // Se for timed mas minutes for undefined → ignora (nunca deve acontecer)
+
+    agg[name].entries.push(act);
   });
 
   return agg;

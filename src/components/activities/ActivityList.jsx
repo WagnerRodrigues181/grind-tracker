@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Clock, Trash2, ChevronLeft, ChevronRight, Timer } from 'lucide-react';
+import { Clock, Trash2, ChevronLeft, ChevronRight, Timer, CheckCircle2 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
@@ -61,7 +61,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     }
 
     const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
-      // Debug massa bixo
       console.log('Custom activities carregadas (ActivityList):', activities);
       setCustomActivities(activities);
     });
@@ -131,7 +130,11 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           const data = docSnap.data();
           if (data.date === currentDate) {
             activitiesData.push({ id: docSnap.id, ...data });
-            total += data.minutes;
+
+            // Só soma minutos se for timed e tiver valor numérico
+            if (data.type !== 'binary' && typeof data.minutes === 'number') {
+              total += data.minutes;
+            }
           }
         });
 
@@ -495,18 +498,40 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             {name}
                           </h3>
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="font-bold text-[#8b8b8b]">
-                              {formatDuration(data.total)}
-                            </span>
-                            {data.target && (
-                              <span className="text-[#8b8b8b]/70">
-                                / {formatDuration(data.target)} • {Math.round(progress)}%
-                              </span>
+                            {data.type === 'binary' ? (
+                              <div className="flex items-center gap-2 text-green-400 font-semibold">
+                                <CheckCircle2 className="w-5 h-5" />
+                                Concluído
+                              </div>
+                            ) : (
+                              <>
+                                <span className="font-bold text-[#8b8b8b]">
+                                  {formatDuration(data.total)}
+                                </span>
+                                {data.target && (
+                                  <span className="text-[#8b8b8b]/70">
+                                    / {formatDuration(data.target)} • {Math.round(progress)}%
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
 
-                        {data.target && (
+                        {/* Barra de progresso visual para binary */}
+                        {data.type === 'binary' ? (
+                          <div className="space-y-1">
+                            <div className="w-full bg-green-500/20 rounded-full h-2 overflow-hidden relative">
+                              <div
+                                className="h-full rounded-full bg-green-500 transition-all duration-300"
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            <p className="text-xs text-green-400/90 font-medium">
+                              ✓ Tarefa concluída com sucesso
+                            </p>
+                          </div>
+                        ) : data.target ? (
                           <div className="space-y-1">
                             <div className="w-full bg-[#8b8b8b]/10 rounded-full h-2 overflow-hidden relative">
                               <div
@@ -525,17 +550,19 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                                   : ''}
                             </p>
                           </div>
-                        )}
+                        ) : null}
 
                         {isToday(currentDate) && (
                           <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleAdjustTime(name, -30)}
-                              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-                            >
-                              −30
-                            </button>
-                            {!isComplete && (
+                            {data.type !== 'binary' && (
+                              <button
+                                onClick={() => handleAdjustTime(name, -30)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+                              >
+                                −30
+                              </button>
+                            )}
+                            {!isComplete && data.type !== 'binary' && (
                               <>
                                 <button
                                   onClick={() => handleStartTimer(name)}
@@ -625,12 +652,21 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                     </div>
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center gap-2 px-3 py-2 bg-[#8b8b8b]/10 rounded-lg">
-                        <Clock className="w-4 h-4 text-[#8b8b8b]" />
-                        <span className="text-sm font-bold text-[#8b8b8b]">
-                          {formatDuration(openActivity.data?.total || 0)}
-                        </span>
+                        {openActivity.data?.type === 'binary' ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                            <span className="text-sm font-bold text-green-400">Concluído</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-4 h-4 text-[#8b8b8b]" />
+                            <span className="text-sm font-bold text-[#8b8b8b]">
+                              {formatDuration(openActivity.data?.total || 0)}
+                            </span>
+                          </>
+                        )}
                       </div>
-                      {openActivity.data?.target && (
+                      {openActivity.data?.target && openActivity.data?.type !== 'binary' && (
                         <div className="text-sm text-[#8b8b8b]/70 px-3">
                           Meta: {formatDuration(openActivity.data.target)}
                         </div>
