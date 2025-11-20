@@ -9,7 +9,6 @@ import {
   Flame,
   TrendingUp,
   Award,
-  Zap,
   Camera,
   Check,
   X,
@@ -26,7 +25,7 @@ export default function ProfileCard({ onClose }) {
   const [animateStats, setAnimateStats] = useState(false);
   const [isAvgExpanded, setIsAvgExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(''); // Novo: pra mostrar erros no UI
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Estados de edição
   const [isEditing, setIsEditing] = useState(false);
@@ -49,7 +48,7 @@ export default function ProfileCard({ onClose }) {
         return;
       }
 
-      console.log('UID atual:', user.uid); // DEBUG: Confirma UID
+      console.log('🔍 UID atual:', user.uid);
 
       const profileData = {
         displayName: user.displayName || 'Usuário',
@@ -58,17 +57,17 @@ export default function ProfileCard({ onClose }) {
         createdAt: user.metadata.creationTime,
         uid: user.uid,
       };
+
       setProfile(profileData);
       setEditName(profileData.displayName);
       setEditPhoto(profileData.photoURL || '');
 
       const statsData = await calculateUserStats(user.uid);
       setStats(statsData);
-
       setLoading(false);
       setTimeout(() => setAnimateStats(true), 100);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      console.error('❌ Erro ao carregar dados:', error);
       setErrorMessage('Erro ao puxar dados. Checa o console e o Firestore.');
       setLoading(false);
     }
@@ -80,13 +79,16 @@ export default function ProfileCard({ onClose }) {
       const q = query(activitiesRef, orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
 
-      console.log('Docs encontrados para UID', userId, ':', snapshot.size); // DEBUG
+      console.log('📊 Docs encontrados para UID', userId, ':', snapshot.size);
+
       if (snapshot.size > 0) {
-        snapshot.docs.forEach((doc) => {
-          console.log('Doc ID:', doc.id, 'Data:', doc.data()); // DEBUG: Mostra conteúdos
+        console.log('📝 Primeiros 3 documentos:');
+        snapshot.docs.slice(0, 3).forEach((doc) => {
+          console.log('  Doc ID:', doc.id);
+          console.log('  Data:', doc.data());
         });
       } else {
-        console.warn('Nenhuma atividade encontrada. Verifica se salvou certo.');
+        console.warn('⚠️ Nenhuma atividade encontrada. Verifica se salvou certo.');
       }
 
       if (snapshot.empty) {
@@ -110,7 +112,23 @@ export default function ProfileCard({ onClose }) {
         const data = doc.data();
         const date = data.date;
         const activity = data.activity;
-        const duration = data.minutes || timeToMinutes(data.duration) || 0;
+        const type = data.type || 'timed';
+
+        // só soma se for timed E tiver minutos válidos
+        let duration = 0;
+        if (type === 'binary') {
+          // Binary não conta em horas, só conclusão
+          duration = 0;
+        } else if (type === 'timed') {
+          // Timed: usa minutes se existir, senão tenta converter duration
+          if (data.minutes != null && typeof data.minutes === 'number') {
+            duration = data.minutes;
+          } else if (data.duration) {
+            duration = timeToMinutes(data.duration) || 0;
+          }
+        }
+
+        console.log(`  ${activity} [${type}]: ${duration} min`);
 
         totalMinutes += duration;
 
@@ -121,7 +139,17 @@ export default function ProfileCard({ onClose }) {
         dayMap[date] += duration;
       });
 
+      console.log(
+        '✅ Total calculado:',
+        totalMinutes,
+        'minutos =',
+        Math.floor(totalMinutes / 60),
+        'horas'
+      );
+      console.log('📦 activityMap:', activityMap);
+
       const topActivities = Object.entries(activityMap)
+        .filter(([name, mins]) => mins > 0) // filtra atividades zeradas
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
         .map(([name, mins]) => ({
@@ -149,19 +177,23 @@ export default function ProfileCard({ onClose }) {
         }
       }
 
-      const bestDayEntry = Object.entries(dayMap).sort((a, b) => b[1] - a[1])[0];
+      const bestDayEntry = Object.entries(dayMap)
+        .filter(([date, mins]) => mins > 0)
+        .sort((a, b) => b[1] - a[1])[0];
       const bestDay = bestDayEntry
         ? { date: bestDayEntry[0], hours: Math.floor(bestDayEntry[1] / 60) }
         : null;
 
-      const totalDays = Object.keys(dayMap).length;
+      const totalDays = Object.keys(dayMap).filter((date) => dayMap[date] > 0).length;
       const avgHoursPerDay = totalDays > 0 ? (totalMinutes / 60 / totalDays).toFixed(1) : 0;
 
-      const avgPerActivity = Object.entries(activityMap).map(([name, mins]) => {
-        const totalHours = mins / 60;
-        const avgHours = totalDays > 0 ? (totalHours / totalDays).toFixed(2) : '0.00';
-        return { name, avgHours: parseFloat(avgHours) };
-      });
+      const avgPerActivity = Object.entries(activityMap)
+        .filter(([name, mins]) => mins > 0)
+        .map(([name, mins]) => {
+          const totalHours = mins / 60;
+          const avgHours = totalDays > 0 ? (totalHours / totalDays).toFixed(2) : '0.00';
+          return { name, avgHours: parseFloat(avgHours) };
+        });
       avgPerActivity.sort((a, b) => b.avgHours - a.avgHours);
 
       return {
@@ -175,7 +207,7 @@ export default function ProfileCard({ onClose }) {
         avgPerActivity,
       };
     } catch (error) {
-      console.error('Erro ao calcular estatísticas:', error);
+      console.error('❌ Erro ao calcular estatísticas:', error);
       return {
         totalHours: 0,
         totalMinutes: 0,
@@ -261,13 +293,28 @@ export default function ProfileCard({ onClose }) {
 
   const getLevel = (hours) => {
     if (hours >= 1000)
-      return { level: 'Legendary', color: 'from-yellow-500 to-amber-600', icon: '👑', next: null };
+      return {
+        level: 'Legendary',
+        color: 'from-yellow-500 to-amber-600',
+        icon: '👑',
+        next: null,
+      };
     if (hours >= 500)
-      return { level: 'Master', color: 'from-purple-500 to-pink-600', icon: '⚡', next: 1000 };
+      return {
+        level: 'Master',
+        color: 'from-purple-500 to-pink-600',
+        icon: '⚡',
+        next: 1000,
+      };
     if (hours >= 250)
       return { level: 'Expert', color: 'from-blue-500 to-cyan-600', icon: '🔥', next: 500 };
     if (hours >= 100)
-      return { level: 'Advanced', color: 'from-green-500 to-emerald-600', icon: '💪', next: 250 };
+      return {
+        level: 'Advanced',
+        color: 'from-green-500 to-emerald-600',
+        icon: '💪',
+        next: 250,
+      };
     return { level: 'Beginner', color: 'from-gray-500 to-gray-600', icon: '🌱', next: 100 };
   };
 
@@ -337,19 +384,47 @@ export default function ProfileCard({ onClose }) {
       {isVisible && (
         <>
           <style>{`
-            @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
-            @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 20px rgba(139,139,139,0.3); } 50% { box-shadow: 0 0 40px rgba(139,139,139,0.6); } }
-            @keyframes count-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-            @keyframes slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes float {
+              0%, 100% { transform: translateY(0px); }
+              50% { transform: translateY(-10px); }
+            }
+            @keyframes pulse-glow {
+              0%, 100% { box-shadow: 0 0 20px rgba(139,139,139,0.3); }
+              50% { box-shadow: 0 0 40px rgba(139,139,139,0.6); }
+            }
+            @keyframes count-up {
+              from { opacity: 0; transform: translateY(10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes slide-up {
+              from { opacity: 0; transform: translateY(8px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
             .animate-float { animation: float 3s ease-in-out infinite; }
             .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
             .animate-count-up { animation: count-up 0.6s ease-out forwards; }
             .animate-slide-up { animation: slide-up 0.5s ease-out 0.3s both; }
             .stat-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-            .stat-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 12px 24px rgba(139,139,139,0.3); }
+            .stat-card:hover {
+              transform: translateY(-4px) scale(1.02);
+              box-shadow: 0 12px 24px rgba(139,139,139,0.3);
+            }
             .trophy-shine { position: relative; overflow: hidden; }
-            .trophy-shine::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent); transform: rotate(45deg); animation: shine 3s infinite; }
-            @keyframes shine { 0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); } 100% { transform: translateX(100%) translateY(100%) rotate(45deg); } }
+            .trophy-shine::before {
+              content: '';
+              position: absolute;
+              top: -50%;
+              left: -50%;
+              width: 200%;
+              height: 200%;
+              background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+              transform: rotate(45deg);
+              animation: shine 3s infinite;
+            }
+            @keyframes shine {
+              0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+              100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            }
           `}</style>
 
           <motion.div
@@ -366,6 +441,7 @@ export default function ProfileCard({ onClose }) {
                 backgroundSize: '40px 40px',
               }}
             ></div>
+
             <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#8b8b8b]/10 to-transparent"></div>
 
             <div className="relative z-10 p-8 space-y-6">
@@ -471,6 +547,7 @@ export default function ProfileCard({ onClose }) {
                             {profile.displayName.charAt(0).toUpperCase()}
                           </div>
                         )}
+
                         <button
                           onClick={() => setIsEditing(true)}
                           className="absolute -bottom-1 -right-1 p-2.5 bg-gradient-to-br from-[#8b8b8b] to-[#6b6b6b] rounded-full text-[#1a1a1a] hover:scale-110 transition-all shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50"
@@ -617,7 +694,6 @@ export default function ProfileCard({ onClose }) {
                             Média Diária por Atividade
                           </h5>
                         </div>
-
                         {stats.avgPerActivity.length > 0 ? (
                           <div className="grid grid-cols-2 gap-3 text-xs">
                             {stats.avgPerActivity.map((act, i) => (
@@ -649,7 +725,6 @@ export default function ProfileCard({ onClose }) {
                       <Target className="w-5 h-5 text-[#8b8b8b]" />
                       <h4 className="text-sm font-bold text-[#8b8b8b]">Top Atividades</h4>
                     </div>
-
                     {stats.topActivities.length > 0 ? (
                       <div className="space-y-3">
                         {stats.topActivities.map((act, i) => {
@@ -659,6 +734,7 @@ export default function ProfileCard({ onClose }) {
                           ).toFixed(1);
                           const avgDaily =
                             stats.avgPerActivity.find((a) => a.name === act.name)?.avgHours || 0;
+
                           return (
                             <div key={i} className="group">
                               <div className="flex items-center justify-between mb-1.5">
