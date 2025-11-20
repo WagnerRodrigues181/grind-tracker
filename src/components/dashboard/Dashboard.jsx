@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../header/Header';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
@@ -9,11 +9,38 @@ import ProfileCard from '../profile/ProfileCard';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const [showProfile, setShowProfile] = useState(false);
 
+  // ESTADO CENTRALIZADO
+  const [customActivities, setCustomActivities] = useState([]);
+  const [loadingActivities, setLoadingActivities] = useState(true);
+
+  // LISTENER ÚNICO — Não vou mais ter dois ouvindo a mesma coisa
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setCustomActivities([]);
+      setLoadingActivities(false);
+      return;
+    }
+
+    setLoadingActivities(true);
+
+    const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
+      setCustomActivities(activities);
+      setLoadingActivities(false);
+    });
+
+    return () => {
+      console.log('Dashboard: Limpando listener de atividades personalizadas');
+      unsubscribe();
+    };
+  }, [currentUser]);
+
+  // Função chamada quando uma atividade é adicionada via ActivityForm
   async function handleActivityAddedFromForm(activityName) {
     if (!currentUser?.uid || !activityName?.trim()) {
       console.warn('Atividade inválida ou usuário não logado');
@@ -38,9 +65,9 @@ export default function Dashboard() {
     }
   }
 
+  // Refresh genérico (os listeners já atualizam tudo sozinho)
   function handleRefresh() {
-    console.log('🔄 Refresh chamado (listeners já cuidam da atualização)');
-    // o Firestore onSnapshot já atualiza automaticamente
+    console.log('Refresh chamado — Firestore já cuida da atualização automática');
   }
 
   return (
@@ -59,9 +86,15 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
+              {/* ActivityForm agora recebe os dados centralizados */}
               <div>
-                <ActivityForm onActivityAdded={handleActivityAddedFromForm} />
+                <ActivityForm
+                  onActivityAdded={handleActivityAddedFromForm}
+                  customActivities={customActivities}
+                  loadingActivities={loadingActivities}
+                />
               </div>
+
               <div>
                 <HabitsTable onActivityAdded={handleRefresh} />
               </div>
@@ -72,6 +105,7 @@ export default function Dashboard() {
         <Footer />
       </div>
 
+      {/* Modal do Perfil */}
       {showProfile && (
         <div
           className="fixed inset-0 z-50 flex flex-col items-center pt-24 px-4 pb-8 bg-black/60 backdrop-blur-sm overflow-y-auto"

@@ -20,6 +20,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { timeToMinutes } from '../../utils/dateHelpers';
 
@@ -81,22 +82,39 @@ export default function HabitsTable({ onActivityAdded }) {
   }, [year, month]);
   // ============================================
 
-  // Carrega atividades do localStorage
+  // Carrega atividades do Firestore em tempo real
   useEffect(() => {
-    const loadActivities = () => {
-      const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
-      setAvailableActivities(customActivities);
-    };
+    if (!currentUser?.uid) {
+      setAvailableActivities([]);
+      return;
+    }
 
-    loadActivities();
-    window.addEventListener('customActivitiesUpdated', loadActivities);
-    window.addEventListener('storage', loadActivities);
+    debugLog('INICIANDO LISTENER FIRESTORE', {
+      userId: currentUser.uid,
+      timestamp: new Date().toISOString(),
+    });
+
+    const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
+      debugLog('ATIVIDADES RECEBIDAS DO FIRESTORE', {
+        count: activities.length,
+        activities: activities.map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          time: a.time,
+          target: a.target,
+        })),
+      });
+      setAvailableActivities(activities);
+    });
 
     return () => {
-      window.removeEventListener('customActivitiesUpdated', loadActivities);
-      window.removeEventListener('storage', loadActivities);
+      debugLog('DESMONTANDO LISTENER FIRESTORE', {
+        userId: currentUser.uid,
+      });
+      unsubscribe();
     };
-  }, []);
+  }, [currentUser]);
 
   // Carrega dados do Firebase
   useEffect(() => {
@@ -145,7 +163,14 @@ export default function HabitsTable({ onActivityAdded }) {
 
   async function handleAddHabitFromPredefined(activity) {
     try {
-      await addHabit(currentUser.uid, activity.name, activity.time);
+      debugLog('ADICIONANDO HÁBITO PRÉ-DEFINIDO', {
+        activityId: activity.id,
+        name: activity.name,
+        time: activity.time,
+        type: activity.type,
+      });
+
+      await addHabit(currentUser.uid, activity.name, activity.time || '00:30');
       setShowPredefinedSelect(false);
       setShowAddModal(false);
       setError('');
@@ -153,8 +178,12 @@ export default function HabitsTable({ onActivityAdded }) {
       const habitsData = await getUserHabits(currentUser.uid);
       setHabits(habitsData);
 
-      window.dispatchEvent(new Event('customActivitiesUpdated'));
+      debugLog('HÁBITO ADICIONADO COM SUCESSO', {
+        habitName: activity.name,
+        totalHabits: habitsData.length,
+      });
     } catch (error) {
+      console.error('Erro ao adicionar hábito:', error);
       setError(error.message);
     }
   }
@@ -178,17 +207,6 @@ export default function HabitsTable({ onActivityAdded }) {
 
     try {
       await addHabit(currentUser.uid, newHabitName.trim(), newHabitDuration.trim());
-
-      const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
-      if (!customActivities.find((a) => a.name === newHabitName.trim())) {
-        customActivities.push({
-          name: newHabitName.trim(),
-          time: newHabitDuration.trim(),
-          target: newHabitTarget.trim() || null,
-        });
-        localStorage.setItem('customActivities', JSON.stringify(customActivities));
-        window.dispatchEvent(new Event('customActivitiesUpdated'));
-      }
 
       setNewHabitName('');
       setNewHabitDuration('');
@@ -387,9 +405,13 @@ export default function HabitsTable({ onActivityAdded }) {
         return;
       }
       const minutes = timeToMinutes(duration);
-      const customActivities = JSON.parse(localStorage.getItem('customActivities') || '[]');
-      const custom = customActivities.find((c) => c.name === habitName);
-      const targetMinutes = custom?.target ? timeToMinutes(custom.target) : null;
+
+      // Busca a atividade correspondente no Firestore
+      const matchingActivity = availableActivities.find((a) => a.name === habitName);
+      const targetMinutes = matchingActivity?.target
+        ? timeToMinutes(matchingActivity.target)
+        : null;
+
       const activityData = {
         activity: habitName,
         minutes,
@@ -402,6 +424,13 @@ export default function HabitsTable({ onActivityAdded }) {
       debugLog('registerHabitAsActivity - DADOS DA ATIVIDADE', {
         activityData,
         collectionPath: `activities/${currentUser.uid}/entries`,
+        matchingActivity: matchingActivity
+          ? {
+              id: matchingActivity.id,
+              name: matchingActivity.name,
+              target: matchingActivity.target,
+            }
+          : null,
       });
       const docRef = await addDoc(
         collection(db, 'activities', currentUser.uid, 'entries'),
@@ -896,22 +925,36 @@ export default function HabitsTable({ onActivityAdded }) {
                     >
                       {availableActivities.length === 0 ? (
                         <p className="text-sm text-[#8b8b8b]/60 text-center py-8">
-                          Nenhuma atividade pré-definida.
+                          Nenhuma atividade pré-definida cadastrada. Use o botão "Gerenciar" no
+                          formulário de atividades para adicionar.
                         </p>
                       ) : (
                         availableActivities.map((activity) => (
                           <button
-                            key={activity.name}
+                            key={activity.id}
                             onClick={() => handleAddHabitFromPredefined(activity)}
                             className="activity-card w-full p-3 bg-[#1a1a1a] rounded-xl text-left border border-[#8b8b8b]/30 flex flex-col group"
                           >
-                            <div className="font-semibold text-[#8b8b8b] group-hover:text-[#a0a0a0] transition-colors">
-                              {activity.name}
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-[#8b8b8b] group-hover:text-[#a0a0a0] transition-colors">
+                                {activity.name}
+                              </span>
+                              {activity.type === 'binary' ? (
+                                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded-full">
+                                  ✓ Check
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full">
+                                  ⏱ Tempo
+                                </span>
+                              )}
                             </div>
-                            <div className="text-xs text-[#8b8b8b]/60 mt-1 group-hover:text-[#8b8b8b]/80 transition-colors">
-                              Duração: {activity.time}
-                              {activity.target && ` → Meta: ${activity.target}`}
-                            </div>
+                            {activity.type !== 'binary' && (
+                              <div className="text-xs text-[#8b8b8b]/60 group-hover:text-[#8b8b8b]/80 transition-colors">
+                                Duração: {activity.time || '00:30'}
+                                {activity.target && ` → Meta: ${activity.target}`}
+                              </div>
+                            )}
                           </button>
                         ))
                       )}

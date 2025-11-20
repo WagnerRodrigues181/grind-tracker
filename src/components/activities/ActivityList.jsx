@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTimer } from '../../contexts/TimerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerModal from '../timer/TimerModal';
+import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
 
 import {
   debugLog,
@@ -51,13 +52,22 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   const scrollPositionRef = useRef(0);
   const isUpdatingRef = useRef(false);
 
-  const customActivities = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('customActivities') || '[]');
-    } catch {
-      return [];
+  const [customActivities, setCustomActivities] = useState([]);
+
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setCustomActivities([]);
+      return;
     }
-  }, [refreshTrigger]);
+
+    const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
+      // Debug massa bixo
+      console.log('Custom activities carregadas (ActivityList):', activities);
+      setCustomActivities(activities);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
 
   const unsubscribeRef = useRef(null);
 
