@@ -104,14 +104,16 @@ export default function Dashboard() {
 
         <Footer />
       </div>
-
       {/* Modal do Perfil */}
       {showProfile && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center pt-24 px-4 pb-8 bg-black/60 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4 py-8 bg-black/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setShowProfile(false)}
         >
-          <div className="relative w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="relative w-full max-w-lg transform scale-90 origin-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <ProfileCard onClose={() => setShowProfile(false)} />
           </div>
         </div>

@@ -27,7 +27,7 @@ import { timeToMinutes } from '../../utils/dateHelpers';
 // ============================================
 // 🔍 SISTEMA DE DEBUG COMPLETO
 // ============================================
-const DEBUG = true; // Mude para false para desativar
+const DEBUG = false;
 function debugLog(section, data) {
   if (!DEBUG) return;
   console.group(`🔍 DEBUG [${section}]`);
@@ -234,9 +234,6 @@ export default function HabitsTable({ onActivityAdded }) {
     }
   }
 
-  // ============================================
-  // Na função handleToggleDay - SUBSTITUA COMPLETAMENTE
-  // ============================================
   async function handleToggleDay(habitName, cellData) {
     debugLog('handleToggleDay - INÍCIO', {
       habitName,
@@ -378,89 +375,50 @@ export default function HabitsTable({ onActivityAdded }) {
     }
   }
 
-  // ============================================
-  // Na função registerHabitAsActivity - SUBSTITUA COMPLETAMENTE
-  // ============================================
   async function registerHabitAsActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    debugLog('registerHabitAsActivity - INÍCIO', {
-      habitName,
-      year,
-      month,
-      day,
-      dateStr,
-      userId: currentUser.uid,
-    });
     try {
-      const duration = await getHabitDuration(currentUser.uid, habitName);
+      const matchingActivity = availableActivities.find((a) => a.name === habitName);
 
-      debugLog('registerHabitAsActivity - DURAÇÃO OBTIDA', {
-        duration,
-        habitName,
-      });
-
-      if (!duration) {
-        console.warn('⚠️ Duração não encontrada para o hábito:', habitName);
+      // Caso 1: Atividade binary (check) → salva tipo e completed
+      if (matchingActivity?.type === 'binary') {
+        await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
+          activity: habitName,
+          type: 'binary',
+          completed: true,
+          date: dateStr,
+          createdAt: serverTimestamp(),
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+        });
         return;
       }
-      const minutes = timeToMinutes(duration);
 
-      // Busca a atividade correspondente no Firestore
-      const matchingActivity = availableActivities.find((a) => a.name === habitName);
+      // Caso 2: Atividade timed → salva minutos normalmente
+      const duration = await getHabitDuration(currentUser.uid, habitName);
+      if (!duration) return;
+
+      const minutes = timeToMinutes(duration);
       const targetMinutes = matchingActivity?.target
         ? timeToMinutes(matchingActivity.target)
         : null;
 
-      const activityData = {
+      await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         activity: habitName,
-        minutes,
+        type: 'timed', // ← GARANTE que tem type
+        minutes, // ← sempre número
         targetMinutes,
         date: dateStr,
         createdAt: serverTimestamp(),
-        userEmail: currentUser.email,
         userId: currentUser.uid,
-      };
-      debugLog('registerHabitAsActivity - DADOS DA ATIVIDADE', {
-        activityData,
-        collectionPath: `activities/${currentUser.uid}/entries`,
-        matchingActivity: matchingActivity
-          ? {
-              id: matchingActivity.id,
-              name: matchingActivity.name,
-              target: matchingActivity.target,
-            }
-          : null,
-      });
-      const docRef = await addDoc(
-        collection(db, 'activities', currentUser.uid, 'entries'),
-        activityData
-      );
-      debugLog('registerHabitAsActivity - SUCESSO', {
-        docId: docRef.id,
-        path: docRef.path,
-        dateRegistered: dateStr,
-      });
-      console.log('✅ Atividade registrada com sucesso!', {
-        habit: habitName,
-        date: dateStr,
-        docId: docRef.id,
+        userEmail: currentUser.email,
       });
     } catch (error) {
-      console.error('❌ Erro ao registrar atividade:', error);
-      debugLog('registerHabitAsActivity - ERRO', {
-        error: error.message,
-        stack: error.stack,
-        habitName,
-        dateStr,
-      });
-      throw error;
+      console.error('Erro ao registrar atividade do hábito:', error);
     }
   }
 
-  // ============================================
-  // Na função removeHabitActivity - SUBSTITUA COMPLETAMENTE
-  // ============================================
   async function removeHabitActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -586,32 +544,37 @@ export default function HabitsTable({ onActivityAdded }) {
         .plus-rotate:hover { transform: rotate(90deg); }
         .arrow-pulse { animation: pulse-ritual 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 
+        /* Scrollbar personalizado para o container de atividades */
+        .scroll-container::-webkit-scrollbar { 
+          width: 8px; 
+        }
+        .scroll-container::-webkit-scrollbar-track { 
+          background: #1a1a1a; 
+          border-radius: 10px;
+          margin: 8px 0;
+        }
+        .scroll-container::-webkit-scrollbar-thumb { 
+          background: linear-gradient(180deg, #8b8b8b, #6b6b6b); 
+          border-radius: 10px;
+          border: 2px solid #1a1a1a;
+          transition: background 0.3s ease;
+        }
+        .scroll-container::-webkit-scrollbar-thumb:hover { 
+          background: linear-gradient(180deg, #a0a0a0, #808080);
+        }
+        
+        /* Firefox */
         .scroll-container {
           scrollbar-width: thin;
           scrollbar-color: #8b8b8b #1a1a1a;
         }
-        .scroll-container::-webkit-scrollbar {
-          width: 6px;
-        }
-        .scroll-container::-webkit-scrollbar-track {
-          background: #1a1a1a;
-          border-radius: 3px;
-        }
-        .scroll-container::-webkit-scrollbar-thumb {
-          background: #8b8b8b;
-          border-radius: 3px;
-        }
-        .scroll-container::-webkit-scrollbar-thumb:hover {
-          background: #a0a0a0;
-        }
 
         .activity-card {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         .activity-card:hover {
-          background-color: #2a2a2a !important;
+          background-color: #252525 !important;
           border-color: #8b8b8b !important;
-          box-shadow: 0 4px 16px rgba(139,139,139,0.2);
         }
       `}</style>
 
@@ -818,7 +781,6 @@ export default function HabitsTable({ onActivityAdded }) {
           </div>
         </div>
 
-        {/* MODAL COM HOVER CORRIGIDO E SCROLL MELHORADO */}
         <AnimatePresence>
           {showAddModal && (
             <motion.div
@@ -826,6 +788,14 @@ export default function HabitsTable({ onActivityAdded }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
+              onClick={() => {
+                setShowAddModal(false);
+                setShowPredefinedSelect(false);
+                setNewHabitName('');
+                setNewHabitDuration('');
+                setNewHabitTarget('');
+                setError('');
+              }}
               className="fixed inset-0 bg-black/70 backdrop-blur-[2px] flex items-center justify-center z-50 p-4"
             >
               <motion.div
@@ -833,6 +803,7 @@ export default function HabitsTable({ onActivityAdded }) {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
+                onClick={(e) => e.stopPropagation()}
                 className="bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl p-8 w-full max-w-md border-2 border-[#8b8b8b]/30 relative"
               >
                 <h3
@@ -920,8 +891,19 @@ export default function HabitsTable({ onActivityAdded }) {
                     </button>
 
                     <div
-                      className="max-h-80 overflow-y-auto mb-6 space-y-2 scroll-container pr-3"
+                      className="max-h-80 overflow-y-auto mb-6 space-y-2 scroll-container pr-3 pt-2 pb-4"
                       style={{ scrollBehavior: 'smooth' }}
+                      onWheel={(e) => {
+                        const el = e.currentTarget;
+                        const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
+                        const atTop = el.scrollTop <= 0;
+
+                        if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
+                          return;
+                        }
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                     >
                       {availableActivities.length === 0 ? (
                         <p className="text-sm text-[#8b8b8b]/60 text-center py-8">
@@ -1048,7 +1030,6 @@ function generateCalendar(year, month) {
     weeks.push(week);
   }
 
-  // ===== DEBUG: Vamos ver o que está sendo gerado =====
   if (DEBUG) {
     debugLog('generateCalendar - RESULTADO', {
       year,
