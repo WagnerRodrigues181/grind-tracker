@@ -118,13 +118,20 @@ export async function adjustActivityTime(
 ) {
   try {
     if (minutesDelta < 0) {
-      // Remove tempo da última entrada
+      // Removendo tempo da última entrada
       const entries = aggregated[activityName]?.entries || [];
       const last = entries[entries.length - 1];
-      if (!last || last.minutes + minutesDelta < 0) return;
-      await deleteDoc(doc(db, 'activities', userId, 'entries', last.id));
+
+      if (!last) return; // Se não existe entrada, retorna
+
+      // Se a entrada tem 0 minutos ou menos que o delta, deleta ela
+      if (last.minutes === 0 || last.minutes + minutesDelta <= 0) {
+        await deleteDoc(doc(db, 'activities', userId, 'entries', last.id));
+      } else {
+        // Se sobrar tempo, só deleta
+        await deleteDoc(doc(db, 'activities', userId, 'entries', last.id));
+      }
     } else {
-      // Adiciona nova entrada com tempo positivo
       await addDoc(collection(db, 'activities', userId, 'entries'), {
         userId,
         userEmail: currentUser.email,

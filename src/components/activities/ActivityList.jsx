@@ -562,7 +562,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                                 −30
                               </button>
                             )}
-                            {!isComplete && data.type !== 'binary' && (
+                            {data.type !== 'binary' && (
                               <>
                                 <button
                                   onClick={() => handleStartTimer(name)}
