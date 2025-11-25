@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2, Play } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function Login() {
@@ -48,6 +48,22 @@ export default function Login() {
       } else {
         setError('Erro ao fazer login. Tente novamente.');
       }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Login automático com usuário demo
+  async function handleDemoLogin() {
+    try {
+      setError('');
+      setLoading(true);
+      await login('demo@grindtracker.app', 'demo123456');
+    } catch (err) {
+      console.error(err);
+      setShake(true);
+      setTimeout(() => setShake(false), 600);
+      setError('Erro ao fazer login demo. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -218,6 +234,38 @@ export default function Login() {
               {mounted && (
                 <div className="absolute bottom-0 left-0 h-[2px] bg-[#FFB84D] animate-border-expand" />
               )}
+            </button>
+          </div>
+
+          {/* BOTÃO DEMO */}
+          <div
+            className={`transition-all duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}
+            style={{ transitionDelay: mounted ? '1200ms' : '0ms' }}
+          >
+            <div className="relative flex items-center justify-center my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[#333333]" />
+              </div>
+              <div className="relative px-4 text-xs text-[#666666] bg-[#252525]">ou</div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={loading}
+              className="relative w-full py-3.5 rounded-xl text-white text-base font-medium flex items-center justify-center gap-2.5 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100 overflow-hidden group cursor-pointer border-2 border-[#444444] hover:border-[#666666]"
+              style={{
+                background: 'linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%)',
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-[#333333] to-[#222222] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative z-10 flex items-center gap-2.5">
+                <Play className="w-4 h-4" />
+                <span>Testar como Demo</span>
+                <span className="px-2 py-0.5 bg-[#FFB84D]/20 text-[#FFB84D] text-xs rounded-md font-semibold">
+                  DEMO
+                </span>
+              </div>
             </button>
           </div>
         </div>
