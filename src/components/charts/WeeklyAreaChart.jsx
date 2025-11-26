@@ -135,7 +135,24 @@ export default function WeeklyAreaChart() {
 
         snapshot.forEach((doc) => {
           const act = doc.data();
-          dayMap.set(act.date, (dayMap.get(act.date) || 0) + act.minutes);
+
+          // ✅ CORREÇÃO: Ignora atividades binary e valida minutes
+          if (act.type === 'binary') {
+            console.log('⏭️ Ignorando atividade binary no gráfico:', act.activity);
+            return;
+          }
+
+          // ✅ CORREÇÃO: Só soma se minutes for número válido
+          if (typeof act.minutes === 'number' && !isNaN(act.minutes)) {
+            const currentTotal = dayMap.get(act.date) || 0;
+            dayMap.set(act.date, currentTotal + act.minutes);
+          } else {
+            console.warn('⚠️ Atividade sem minutes válido:', {
+              activity: act.activity,
+              minutes: act.minutes,
+              type: act.type,
+            });
+          }
         });
 
         newData.forEach((day) => {
@@ -144,13 +161,19 @@ export default function WeeklyAreaChart() {
           day.hours = Number((mins / 60).toFixed(2));
         });
 
+        console.log('📊 Dados do gráfico individual atualizados:', {
+          totalMinutes: newData.reduce((sum, d) => sum + d.minutes, 0),
+          days: newData,
+        });
+
         setChartData(newData);
 
         if (viewMode === 'individual') {
           setLoading(false);
         }
       },
-      () => {
+      (error) => {
+        console.error('❌ Erro no listener individual:', error);
         setChartData(emptyData);
         if (viewMode === 'individual') {
           setLoading(false);
@@ -160,12 +183,11 @@ export default function WeeklyAreaChart() {
 
     unsubscribeRef.current = individualUnsub;
 
-    // === MODO COMPARAÇÃO: ATUALIZAÇÃO EM TEMPO REAL (CORRIGIDO) ===
+    // === MODO COMPARAÇÃO ===
     if (viewMode === 'comparison' && comparisonUsers.length === 2) {
       const user1Data = new Map();
       const user2Data = new Map();
 
-      // Função que atualiza o gráfico SEMPRE que qualquer usuário muda
       const updateComparisonChart = () => {
         const compData = emptyData.map((day) => {
           const u1 = user1Data.get(day.date) || 0;
@@ -179,8 +201,14 @@ export default function WeeklyAreaChart() {
             user2Hours: Number((u2 / 60).toFixed(2)),
           };
         });
+
+        console.log('📊 Comparação atualizada:', {
+          user1Total: compData.reduce((sum, d) => sum + d.user1Minutes, 0),
+          user2Total: compData.reduce((sum, d) => sum + d.user2Minutes, 0),
+        });
+
         setComparisonData(compData);
-        setLoading(false); // Sempre mostra o gráfico, mesmo se um usuário falhar
+        setLoading(false);
       };
 
       const usersToCompare = comparisonUsers.map((user) => ({
@@ -198,19 +226,18 @@ export default function WeeklyAreaChart() {
         const userUnsub = onSnapshot(
           userQuery,
           (snapshot) => {
-            console.log(
-              `📊 Dados recebidos para ${isCurrent ? 'usuário atual' : 'outro usuário'}:`,
-              {
-                uid,
-                docsCount: snapshot.docs.length,
-                totalMinutes: snapshot.docs.reduce((sum, doc) => sum + doc.data().minutes, 0),
-              }
-            );
-
             const dayMap = new Map();
+
             snapshot.forEach((doc) => {
               const act = doc.data();
-              dayMap.set(act.date, (dayMap.get(act.date) || 0) + act.minutes);
+
+              // ✅ CORREÇÃO: Ignora binary e valida minutes
+              if (act.type === 'binary') return;
+
+              if (typeof act.minutes === 'number' && !isNaN(act.minutes)) {
+                const currentTotal = dayMap.get(act.date) || 0;
+                dayMap.set(act.date, currentTotal + act.minutes);
+              }
             });
 
             if (isCurrent) {
@@ -221,14 +248,13 @@ export default function WeeklyAreaChart() {
               dayMap.forEach((mins, date) => user2Data.set(date, mins));
             }
 
-            // ATUALIZA O GRÁFICO IMEDIATAMENTE
             updateComparisonChart();
           },
           (error) => {
             console.error(`❌ Erro ao buscar dados de ${uid}:`, error);
             if (isCurrent) user1Data.clear();
             else user2Data.clear();
-            updateComparisonChart(); // Mesmo com erro, tenta atualizar
+            updateComparisonChart();
           }
         );
 
@@ -386,15 +412,13 @@ export default function WeeklyAreaChart() {
             >
               {viewMode === 'individual' ? (
                 <>
-                  {' '}
-                  <Users className="w-4 h-4 text-primary-accent" />{' '}
-                  <span className="text-xs font-medium text-primary-accent">Comparar</span>{' '}
+                  <Users className="w-4 h-4 text-primary-accent" />
+                  <span className="text-xs font-medium text-primary-accent">Comparar</span>
                 </>
               ) : (
                 <>
-                  {' '}
-                  <BarChart3 className="w-4 h-4 text-primary-accent" />{' '}
-                  <span className="text-xs font-medium text-primary-accent">Individual</span>{' '}
+                  <BarChart3 className="w-4 h-4 text-primary-accent" />
+                  <span className="text-xs font-medium text-primary-accent">Individual</span>
                 </>
               )}
             </button>

@@ -361,6 +361,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           height: 100%;
           background: linear-gradient(90deg, transparent, rgba(139, 139, 139, 0.1), transparent);
           transition: left 0.5s ease;
+          pointer-events: none;
         }
         
         .activity-card:hover {
@@ -396,6 +397,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           );
           background-size: 300% 100%;
           animation: breathing 4s ease-in-out infinite;
+          pointer-events: none;
         }
       `}</style>
 
