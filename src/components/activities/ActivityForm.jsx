@@ -106,7 +106,7 @@ export default function ActivityForm({
         activity: activityName.trim(),
         type: 'timed',
         minutes,
-        targetMinutes,
+        targetMinutes, // ← garante que sempre salva
         date: getToday(),
         createdAt: serverTimestamp(),
       });
