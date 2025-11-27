@@ -142,8 +142,7 @@ O grind nunca para.
 
 ---
 
-> **Claves Regni Catholicam Vel Mors.**  
-> **Vril ativado. Based. Eterno.**  
-> **GrindTracker – porque o fraco não tem histórico.**
+> **Based. Eterno.**  
+> **GrindTracker – porque o molenga não tem histórico.**
 
 ---
