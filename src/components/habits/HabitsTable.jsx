@@ -23,6 +23,7 @@ import { db } from '../../services/firebase';
 import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { timeToMinutes } from '../../utils/dateHelpers';
+import { addCustomActivityTemplate } from '../../services/activitiesService';
 
 // ============================================
 // 🔍 SISTEMA DE DEBUG COMPLETO
@@ -205,8 +206,23 @@ export default function HabitsTable({ onActivityAdded }) {
       return;
     }
 
+    // valida meta se fornecida
+    if (newHabitTarget.trim() && !timeRegex.test(newHabitTarget)) {
+      setError('Formato de meta inválido. Use HH:MM (ex: 04:00)');
+      return;
+    }
+
     try {
+      // Adiciona o hábito no sistema de hábitos
       await addHabit(currentUser.uid, newHabitName.trim(), newHabitDuration.trim());
+
+      // Adiciona como template de atividade customizada (COM TYPE E TARGET)
+      await addCustomActivityTemplate(currentUser.uid, {
+        name: newHabitName.trim(),
+        type: 'timed', // hábitos são sempre timed
+        time: newHabitDuration.trim(),
+        target: newHabitTarget.trim() || '', // agora salva a meta
+      });
 
       setNewHabitName('');
       setNewHabitDuration('');
@@ -218,6 +234,7 @@ export default function HabitsTable({ onActivityAdded }) {
       const habitsData = await getUserHabits(currentUser.uid);
       setHabits(habitsData);
     } catch (error) {
+      console.error('Erro ao adicionar hábito:', error);
       setError(error.message);
     }
   }

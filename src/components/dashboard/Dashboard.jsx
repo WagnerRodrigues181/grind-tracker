@@ -6,10 +6,8 @@ import WeeklyAreaChart from '../charts/WeeklyAreaChart';
 import HabitsTable from '../habits/HabitsTable';
 import Footer from '../Footer';
 import ProfileCard from '../profile/ProfileCard';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../services/firebase';
-import { useAuth } from '../../contexts/AuthContext';
 import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
@@ -19,7 +17,7 @@ export default function Dashboard() {
   const [customActivities, setCustomActivities] = useState([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
 
-  // LISTENER ÚNICO — Não vou mais ter dois ouvindo a mesma coisa
+  // LISTENER ÚNICO
   useEffect(() => {
     if (!currentUser?.uid) {
       setCustomActivities([]);
@@ -30,6 +28,7 @@ export default function Dashboard() {
     setLoadingActivities(true);
 
     const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
+      console.log('✅ Dashboard: Atividades carregadas:', activities);
       setCustomActivities(activities);
       setLoadingActivities(false);
     });
@@ -40,29 +39,10 @@ export default function Dashboard() {
     };
   }, [currentUser]);
 
-  // Função chamada quando uma atividade é adicionada via ActivityForm
-  async function handleActivityAddedFromForm(activityName) {
-    if (!currentUser?.uid || !activityName?.trim()) {
-      console.warn('Atividade inválida ou usuário não logado');
-      return;
-    }
-
-    try {
-      const entriesRef = collection(db, 'activities', currentUser.uid, 'entries');
-
-      await addDoc(entriesRef, {
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
-        activity: activityName.trim(),
-        minutes: 30,
-        date: new Date().toISOString().split('T')[0],
-        createdAt: serverTimestamp(),
-      });
-
-      console.log('Atividade salva com sucesso:', activityName);
-    } catch (err) {
-      console.error('Erro ao salvar atividade:', err);
-    }
+  function handleActivityAddedFromForm() {
+    console.log(
+      '✅ Dashboard: Atividade adicionada via ActivityForm (listener atualiza automaticamente)'
+    );
   }
 
   // Refresh genérico (os listeners já atualizam tudo sozinho)
@@ -86,7 +66,6 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
-              {/* ActivityForm agora recebe os dados centralizados */}
               <div>
                 <ActivityForm
                   onActivityAdded={handleActivityAddedFromForm}
@@ -104,6 +83,7 @@ export default function Dashboard() {
 
         <Footer />
       </div>
+
       {/* Modal do Perfil */}
       {showProfile && (
         <div

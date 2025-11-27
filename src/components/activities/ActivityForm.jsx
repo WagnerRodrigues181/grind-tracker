@@ -133,18 +133,34 @@ export default function ActivityForm({
   async function handleAddCustom() {
     const name = newActivityName.trim();
     if (!name) return;
+
+    // Valida formato do tempo
+    const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
+    if (newActivityTime && !timeRegex.test(newActivityTime)) {
+      alert('Formato de tempo inválido. Use HH:MM (ex: 01:30)');
+      return;
+    }
+
+    // Valida formato da meta (se fornecida)
+    if (newActivityTarget && !timeRegex.test(newActivityTarget)) {
+      alert('Formato de meta inválido. Use HH:MM (ex: 04:00)');
+      return;
+    }
+
     try {
       await addCustomActivityTemplate(currentUser.uid, {
         name,
         type: newActivityType,
-        time: newActivityTime.trim(),
-        target: newActivityTarget.trim(),
+        time: newActivityTime.trim() || '00:30', // tempo padrão se vazio
+        target: newActivityTarget.trim() || '', // agora salva a meta
       });
+
       setNewActivityName('');
       setNewActivityType('timed');
       setNewActivityTime('');
       setNewActivityTarget('');
     } catch (e) {
+      console.error('Erro ao salvar template:', e);
       alert('Erro ao salvar template');
     }
   }

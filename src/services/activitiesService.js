@@ -43,7 +43,7 @@ export const addCustomActivityTemplate = async (userId, { name, type, time = '',
     type, // 'timed' ou 'binary'
     time, // ex: "01:30"
     target, // ex: "04:00"
-    userId, // ✅ ADICIONADO: salva o userId no documento
+    userId,
     createdAt: serverTimestamp(),
   });
 };
