@@ -398,7 +398,6 @@ export default function HabitsTable({ onActivityAdded }) {
     try {
       const matchingActivity = availableActivities.find((a) => a.name === habitName);
 
-      // Caso 1: Atividade binary (check) → salva tipo e completed
       if (matchingActivity?.type === 'binary') {
         await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
           activity: habitName,
@@ -412,20 +411,21 @@ export default function HabitsTable({ onActivityAdded }) {
         return;
       }
 
-      // Caso 2: Atividade timed → salva minutos normalmente
       const duration = await getHabitDuration(currentUser.uid, habitName);
       if (!duration) return;
 
       const minutes = timeToMinutes(duration);
+
+      // SEMPRE calcula e salva targetMinutes
       const targetMinutes = matchingActivity?.target
         ? timeToMinutes(matchingActivity.target)
         : null;
 
       await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         activity: habitName,
-        type: 'timed', // ← GARANTE que tem type
-        minutes, // ← sempre número
-        targetMinutes,
+        type: 'timed',
+        minutes,
+        targetMinutes, // ← agora sempre salva
         date: dateStr,
         createdAt: serverTimestamp(),
         userId: currentUser.uid,
