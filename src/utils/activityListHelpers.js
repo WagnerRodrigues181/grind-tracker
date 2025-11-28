@@ -75,20 +75,24 @@ export function aggregateActivities(activities, customActivities, timeToMinutes)
       const template = customActivities.find((c) => c.name === name);
       const type = template?.type || act.type || 'timed';
 
-      let targetMinutes = null;
-      if (template?.target) {
-        targetMinutes = timeToMinutes(template.target);
-      } else if (act.targetMinutes != null) {
-        targetMinutes = act.targetMinutes;
-      }
-
       agg[name] = {
         name,
         type,
         total: 0,
-        target: targetMinutes,
+        target: null,
         entries: [],
       };
+    }
+
+    // Atualiza o target SEMPRE com o valor mais recente
+    if (act.targetMinutes != null) {
+      agg[name].target = act.targetMinutes;
+    } else if (agg[name].target === null) {
+      // Se não tem target na entry, tenta pegar do template
+      const template = customActivities.find((c) => c.name === name);
+      if (template?.target) {
+        agg[name].target = timeToMinutes(template.target);
+      }
     }
 
     if (agg[name].type === 'binary') {
