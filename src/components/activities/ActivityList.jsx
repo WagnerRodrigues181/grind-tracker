@@ -519,7 +519,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             )}
                           </div>
                         </div>
-
                         {/* Barra de progresso visual para binary */}
                         {data.type === 'binary' ? (
                           <div className="space-y-1">
@@ -553,8 +552,8 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             </p>
                           </div>
                         ) : null}
-
-                        {isToday(currentDate) && (
+                        {isToday(currentDate) ? (
+                          // DIA ATUAL: Botões rápidos para atividade em andamento
                           <div className="flex flex-wrap gap-2">
                             {data.type !== 'binary' && (
                               <button
@@ -566,13 +565,16 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             )}
                             {data.type !== 'binary' && (
                               <>
-                                <button
-                                  onClick={() => handleStartTimer(name)}
-                                  className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
-                                >
-                                  <Timer className="w-3.5 h-3.5" />
-                                  <span>Timer</span>
-                                </button>
+                                {/* Timer APENAS no dia atual */}
+                                {isToday(currentDate) && (
+                                  <button
+                                    onClick={() => handleStartTimer(name)}
+                                    className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
+                                  >
+                                    <Timer className="w-3.5 h-3.5" />
+                                    <span>Timer</span>
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleAdjustTime(name, 30)}
                                   className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
@@ -594,6 +596,35 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                               </>
                             )}
                           </div>
+                        ) : (
+                          data.type !== 'binary' && (
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => handleAdjustTime(name, -30)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+                              >
+                                −30
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, 30)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
+                              >
+                                +30
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, 45)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+                              >
+                                +45
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, 60)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+                              >
+                                +1h
+                              </button>
+                            </div>
+                          )
                         )}
                       </div>
 

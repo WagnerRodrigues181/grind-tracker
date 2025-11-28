@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Loader2, Settings, Clock, CheckSquare } from 'lucide-react';
+import { Plus, Loader2, Settings, Clock, CheckSquare, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   addCustomActivityTemplate,
   deleteCustomActivityTemplate,
+  updateCustomActivityTemplate,
 } from '../../services/activitiesService';
 
 const getToday = () => new Date().toISOString().split('T')[0];
@@ -31,11 +32,21 @@ export default function ActivityForm({
   const [success, setSuccess] = useState('');
   const [showMenu, setShowMenu] = useState(false);
 
-  // Estados para o formulário do modal
+  // Estados para o formulário do modal de ADICIONAR
   const [newActivityName, setNewActivityName] = useState('');
   const [newActivityType, setNewActivityType] = useState('timed');
   const [newActivityTime, setNewActivityTime] = useState('');
   const [newActivityTarget, setNewActivityTarget] = useState('');
+
+  // Estados para o modal de EDIÇÃO
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('timed');
+  const [editTime, setEditTime] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
 
   function handleSelectActivity(value) {
     setSelectedActivity(value);
@@ -106,7 +117,7 @@ export default function ActivityForm({
         activity: activityName.trim(),
         type: 'timed',
         minutes,
-        targetMinutes, // ← garante que sempre salva
+        targetMinutes,
         date: getToday(),
         createdAt: serverTimestamp(),
       });
@@ -134,14 +145,12 @@ export default function ActivityForm({
     const name = newActivityName.trim();
     if (!name) return;
 
-    // Valida formato do tempo
     const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
     if (newActivityTime && !timeRegex.test(newActivityTime)) {
       alert('Formato de tempo inválido. Use HH:MM (ex: 01:30)');
       return;
     }
 
-    // Valida formato da meta (se fornecida)
     if (newActivityTarget && !timeRegex.test(newActivityTarget)) {
       alert('Formato de meta inválido. Use HH:MM (ex: 04:00)');
       return;
@@ -151,8 +160,8 @@ export default function ActivityForm({
       await addCustomActivityTemplate(currentUser.uid, {
         name,
         type: newActivityType,
-        time: newActivityTime.trim() || '00:30', // tempo padrão se vazio
-        target: newActivityTarget.trim() || '', // agora salva a meta
+        time: newActivityTime.trim() || '00:30',
+        target: newActivityTarget.trim() || '',
       });
 
       setNewActivityName('');
@@ -174,6 +183,66 @@ export default function ActivityForm({
     }
   }
 
+  // ============================================
+  // FUNÇÕES DE EDIÇÃO
+  // ============================================
+  function openEditModal(activity) {
+    setEditingActivity(activity);
+    setEditName(activity.name);
+    setEditType(activity.type || 'timed');
+    setEditTime(activity.time || '');
+    setEditTarget(activity.target || '');
+    setEditError('');
+    setShowEditModal(true);
+  }
+
+  function closeEditModal() {
+    setShowEditModal(false);
+    setEditingActivity(null);
+    setEditName('');
+    setEditType('timed');
+    setEditTime('');
+    setEditTarget('');
+    setEditError('');
+  }
+
+  async function handleSaveEdit() {
+    if (!editName.trim()) {
+      setEditError('Nome não pode estar vazio');
+      return;
+    }
+
+    const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
+
+    if (editType === 'timed') {
+      if (!editTime || !timeRegex.test(editTime)) {
+        setEditError('Formato de tempo inválido. Use HH:MM (ex: 01:30)');
+        return;
+      }
+
+      if (editTarget && !timeRegex.test(editTarget)) {
+        setEditError('Formato de meta inválido. Use HH:MM (ex: 04:00)');
+        return;
+      }
+    }
+
+    try {
+      setEditLoading(true);
+      await updateCustomActivityTemplate(currentUser.uid, editingActivity.id, {
+        name: editName.trim(),
+        type: editType,
+        time: editType === 'timed' ? editTime.trim() : '',
+        target: editType === 'timed' ? editTarget.trim() : '',
+      });
+      closeEditModal();
+    } catch (e) {
+      console.error('Erro ao atualizar:', e);
+      setEditError('Erro ao salvar alterações');
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
   return (
     <>
       <style>{`
@@ -183,30 +252,14 @@ export default function ActivityForm({
         .btn-hover-scale { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-hover-scale:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(139, 139, 139, 0.3); }
         
-        /* Scrollbar personalizado para o container de atividades */
-        .custom-scrollbar::-webkit-scrollbar { 
-          width: 8px; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-track { 
-          background: #1a1a1a; 
-          border-radius: 10px;
-          margin: 8px 0;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb { 
-          background: linear-gradient(180deg, #8b8b8b, #6b6b6b); 
-          border-radius: 10px;
-          border: 2px solid #1a1a1a;
-          transition: background 0.3s ease;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
-          background: linear-gradient(180deg, #a0a0a0, #808080);
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 10px; margin: 8px 0; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #8b8b8b, #6b6b6b); border-radius: 10px; border: 2px solid #1a1a1a; transition: background 0.3s ease; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #a0a0a0, #808080); }
+        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #8b8b8b #1a1a1a; }
         
-        /* Firefox */
-        .custom-scrollbar {
-          scrollbar-width: thin;
-          scrollbar-color: #8b8b8b #1a1a1a;
-        }
+        .edit-btn { transition: all 0.2s ease; }
+        .edit-btn:hover { transform: translateX(-2px); }
       `}</style>
 
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20">
@@ -361,7 +414,6 @@ export default function ActivityForm({
                   Atividades Personalizadas
                 </h3>
 
-                {/* Container com scroll personalizado APENAS na lista de atividades */}
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                   <div
                     className="custom-scrollbar overflow-y-auto pr-2 space-y-3 mb-6 flex-shrink-0"
@@ -379,7 +431,7 @@ export default function ActivityForm({
                       customActivities.map((a) => (
                         <div
                           key={a.id}
-                          className="flex justify-between items-center bg-[#1a1a1a] p-3 rounded-xl border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 transition-colors"
+                          className="flex justify-between items-center bg-[#1a1a1a] p-3 rounded-xl border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 transition-colors group"
                         >
                           <div className="flex-1 min-w-0">
                             <span className="font-medium text-[#8b8b8b] block truncate">
@@ -396,18 +448,26 @@ export default function ActivityForm({
                               </span>
                             )}
                           </div>
-                          <button
-                            onClick={() => handleRemove(a.id)}
-                            className="ml-3 text-red-400 hover:text-red-300 text-sm font-medium transition-colors flex-shrink-0"
-                          >
-                            Remover
-                          </button>
+                          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                            <button
+                              onClick={() => openEditModal(a)}
+                              className="edit-btn text-blue-400 hover:text-blue-300 text-sm font-medium transition-all flex items-center gap-1 opacity-0 group-hover:opacity-100"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleRemove(a.id)}
+                              className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                            >
+                              Remover
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
                   </div>
 
-                  {/* Formulário fixo na parte inferior */}
                   <div className="space-y-4 border-t border-[#8b8b8b]/30 pt-6 flex-shrink-0">
                     <input
                       value={newActivityName}
@@ -423,24 +483,130 @@ export default function ActivityForm({
                       <option value="timed">⏱ Time (Treino, Estudo)</option>
                       <option value="binary">✓ Check (Dieta, Sono)</option>
                     </select>
-                    <input
-                      value={newActivityTime}
-                      onChange={(e) => setNewActivityTime(e.target.value)}
-                      placeholder="Tempo padrão (ex: 01:30)"
-                      className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                    />
-                    <input
-                      value={newActivityTarget}
-                      onChange={(e) => setNewActivityTarget(e.target.value)}
-                      placeholder="Meta (ex: 04:00)"
-                      className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                    />
+                    {newActivityType === 'timed' && (
+                      <>
+                        <input
+                          value={newActivityTime}
+                          onChange={(e) => setNewActivityTime(e.target.value)}
+                          placeholder="Tempo padrão (ex: 01:30)"
+                          className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                        />
+                        <input
+                          value={newActivityTarget}
+                          onChange={(e) => setNewActivityTarget(e.target.value)}
+                          placeholder="Meta (ex: 04:00)"
+                          className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                        />
+                      </>
+                    )}
                     <button
                       onClick={handleAddCustom}
                       className="w-full p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl font-semibold btn-hover-scale transition-all"
                     >
                       <Plus className="w-5 h-5 inline mr-2" />
                       Adicionar Nova Atividade
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL DE EDIÇÃO */}
+        <AnimatePresence>
+          {showEditModal && (
+            <motion.div
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeEditModal}
+            >
+              <motion.div
+                onClick={(e) => e.stopPropagation()}
+                className="bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl p-8 w-full max-w-md border-2 border-[#8b8b8b]/40 relative"
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+              >
+                <button
+                  onClick={closeEditModal}
+                  className="absolute top-4 right-4 text-2xl text-[#8b8b8b] hover:text-[#a0a0a0] transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#8b8b8b]/10"
+                >
+                  ×
+                </button>
+
+                <h3 className="text-xl font-bold text-[#8b8b8b] mb-6 font-cinzel pr-8">
+                  Editar Atividade
+                </h3>
+
+                {editError && (
+                  <div className="mb-4 p-3 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
+                    {editError}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Nome da atividade"
+                    className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                  />
+
+                  <select
+                    value={editType}
+                    onChange={(e) => setEditType(e.target.value)}
+                    className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                  >
+                    <option value="timed">⏱ Time (Treino, Estudo)</option>
+                    <option value="binary">✓ Check (Dieta, Sono)</option>
+                  </select>
+
+                  {editType === 'timed' && (
+                    <>
+                      <input
+                        type="text"
+                        value={editTime}
+                        onChange={(e) => setEditTime(e.target.value)}
+                        placeholder="Tempo padrão (ex: 01:30)"
+                        maxLength={5}
+                        className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                      />
+                      <input
+                        type="text"
+                        value={editTarget}
+                        onChange={(e) => setEditTarget(e.target.value)}
+                        placeholder="Meta (ex: 04:00)"
+                        maxLength={5}
+                        className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] placeholder-[#8b8b8b]/40 rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                      />
+                    </>
+                  )}
+
+                  <div className="flex gap-4 pt-2">
+                    <button
+                      onClick={closeEditModal}
+                      disabled={editLoading}
+                      className="flex-1 p-4 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all duration-300 font-semibold border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={editLoading}
+                      className="flex-1 p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {editLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        'Salvar Alterações'
+                      )}
                     </button>
                   </div>
                 </div>
