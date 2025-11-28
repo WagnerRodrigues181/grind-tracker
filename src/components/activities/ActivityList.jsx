@@ -606,35 +606,31 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
             <div className="flex items-center justify-center py-24">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#8b8b8b]"></div>
             </div>
-          ) : Object.keys(aggregated).length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-[#8b8b8b] mb-2">Nenhuma atividade neste dia</p>
-              <p className="text-sm text-[#8b8b8b]/70">Adicione sua primeira atividade!</p>
-            </div>
           ) : (
             <div className="activity-grid">
               <AnimatePresence mode="popLayout">
-                {/* Card para adicionar atividade em dias anteriores */}
-                {!isToday(currentDate) && (
-                  <motion.div
-                    layout="position"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="activity-card group relative flex items-center justify-center gap-4 bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl border-2 border-dashed border-[#8b8b8b]/40 hover:border-[#8b8b8b] p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/20"
-                    onClick={() => setShowAddActivityModal(true)}
-                  >
-                    <div className="text-center">
-                      <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-[#8b8b8b]/10 flex items-center justify-center">
-                        <Plus className="w-8 h-8 text-[#8b8b8b]" />
-                      </div>
-                      <p className="text-sm font-semibold text-[#8b8b8b]">Adicionar Atividade</p>
-                      <p className="text-xs text-[#8b8b8b]/60 mt-1">
-                        Registrar atividade deste dia
-                      </p>
+                {/* Card para adicionar atividade - SEMPRE VISÍVEL */}
+                <motion.div
+                  layout="position"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="activity-card group relative flex items-center justify-center gap-4 bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl border-2 border-dashed border-[#8b8b8b]/40 hover:border-[#8b8b8b] p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/20"
+                  onClick={() => setShowAddActivityModal(true)}
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-[#8b8b8b]/10 flex items-center justify-center">
+                      <Plus className="w-8 h-8 text-[#8b8b8b]" />
                     </div>
-                  </motion.div>
-                )}
+                    <p className="text-sm font-semibold text-[#8b8b8b]">Adicionar Atividade</p>
+                    <p className="text-xs text-[#8b8b8b]/60 mt-1">
+                      {Object.keys(aggregated).length === 0
+                        ? 'Adicione sua primeira atividade!'
+                        : 'Registrar atividade deste dia'}
+                    </p>
+                  </div>
+                </motion.div>
 
+                {/* Lista de atividades existentes */}
                 {Object.entries(aggregated).map(([name, data]) => {
                   const progress = data.target ? (data.total / data.target) * 100 : 0;
                   const isComplete = progress >= 100;
@@ -787,7 +783,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                                   e.stopPropagation();
                                   handleOpenEditTarget(name);
                                 }}
-                                className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-purple-500/10 text-purple-400 rounded-md hover:bg-purple-500/20 transition-colors border border-purple-500/30 flex items-center justify-center gap-1"
+                                className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
                               >
                                 <Target className="w-3.5 h-3.5" />
                                 Meta
