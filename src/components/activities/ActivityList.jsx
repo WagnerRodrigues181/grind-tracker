@@ -313,7 +313,10 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   async function handleAddPastActivity() {
     setAddActivityError('');
 
-    if (!addActivityName.trim()) {
+    // Limpa o nome se for 'custom'
+    const activityName = addActivityName === 'custom' ? '' : addActivityName.trim();
+
+    if (!activityName) {
       setAddActivityError('Digite o nome da atividade');
       return;
     }
@@ -339,7 +342,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
         await addDoc(collection(db, 'activities', userId, 'entries'), {
           userId,
           userEmail: currentUser.email,
-          activity: addActivityName.trim(),
+          activity: activityName,
           type: 'binary',
           completed: true,
           date: currentDate,
@@ -352,7 +355,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
         await addDoc(collection(db, 'activities', userId, 'entries'), {
           userId,
           userEmail: currentUser.email,
-          activity: addActivityName.trim(),
+          activity: activityName,
           type: 'timed',
           minutes,
           targetMinutes,
@@ -940,7 +943,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           </motion.div>
         )}
 
-        {/* Modal Adicionar Atividade em Dia Anterior */}
+        {/* Modal Adicionar Atividade */}
         <AnimatePresence>
           {showAddActivityModal && (
             <motion.div
@@ -969,14 +972,53 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                 )}
 
                 <div className="space-y-4">
-                  <input
-                    type="text"
-                    value={addActivityName}
-                    onChange={(e) => setAddActivityName(e.target.value)}
-                    placeholder="Nome da atividade"
-                    className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                  />
+                  {/* DROPDOWN DE ATIVIDADES PREDEFINIDAS */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#8b8b8b] mb-2">
+                      Selecione uma atividade
+                    </label>
+                    <select
+                      value={addActivityName}
+                      onChange={(e) => {
+                        const selectedName = e.target.value;
+                        setAddActivityName(selectedName);
 
+                        // Se selecionou uma atividade predefinida, preenche os campos automaticamente
+                        if (selectedName && selectedName !== 'custom') {
+                          const activity = customActivities.find((a) => a.name === selectedName);
+                          if (activity) {
+                            setAddActivityType(activity.type || 'timed');
+                            if (activity.type === 'timed') {
+                              setAddActivityTime(activity.time || '00:30');
+                              setAddActivityTarget(activity.target || '');
+                            }
+                          }
+                        }
+                      }}
+                      className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                    >
+                      <option value="">Escolha uma predefinida ou digite abaixo</option>
+                      {customActivities.map((activity) => (
+                        <option key={activity.id} value={activity.name}>
+                          {activity.name} {activity.type === 'binary' ? '✓' : '⏱'}
+                        </option>
+                      ))}
+                      <option value="custom">✏️ Outra (personalizada)</option>
+                    </select>
+                  </div>
+
+                  {/* CAMPO DE NOME PERSONALIZADO */}
+                  {(addActivityName === 'custom' || addActivityName === '') && (
+                    <input
+                      type="text"
+                      value={addActivityName === 'custom' ? '' : addActivityName}
+                      onChange={(e) => setAddActivityName(e.target.value)}
+                      placeholder="Nome da atividade"
+                      className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                    />
+                  )}
+
+                  {/* TIPO DE ATIVIDADE */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setAddActivityType('timed')}
@@ -1002,6 +1044,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                     </button>
                   </div>
 
+                  {/* CAMPOS DE TEMPO (só aparece se type = timed) */}
                   {addActivityType === 'timed' && (
                     <>
                       <input
@@ -1023,9 +1066,17 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                     </>
                   )}
 
+                  {/* BOTÕES DE AÇÃO */}
                   <div className="flex gap-3 pt-2">
                     <button
-                      onClick={() => setShowAddActivityModal(false)}
+                      onClick={() => {
+                        setShowAddActivityModal(false);
+                        setAddActivityName('');
+                        setAddActivityTime('');
+                        setAddActivityTarget('');
+                        setAddActivityType('timed');
+                        setAddActivityError('');
+                      }}
                       disabled={addActivityLoading}
                       className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50"
                     >
