@@ -1,11 +1,30 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Clock, Trash2, ChevronLeft, ChevronRight, Timer, CheckCircle2 } from 'lucide-react';
+import {
+  Clock,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Timer,
+  CheckCircle2,
+  Plus,
+  Target,
+} from 'lucide-react';
 import { db } from '../../services/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  setDoc,
+  doc,
+  serverTimestamp,
+} from 'firebase/firestore';
 import {
   getToday,
   formatDuration,
   timeToMinutes,
+  minutesToTime,
   addDays,
   formatDateDisplay,
   isToday,
@@ -45,6 +64,21 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
 
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
+
+  // Estados para modal de adicionar atividade em dias anteriores
+  const [showAddActivityModal, setShowAddActivityModal] = useState(false);
+  const [addActivityName, setAddActivityName] = useState('');
+  const [addActivityTime, setAddActivityTime] = useState('');
+  const [addActivityTarget, setAddActivityTarget] = useState('');
+  const [addActivityType, setAddActivityType] = useState('timed');
+  const [addActivityLoading, setAddActivityLoading] = useState(false);
+  const [addActivityError, setAddActivityError] = useState('');
+
+  // Estado para editar meta do dia
+  const [showEditTargetModal, setShowEditTargetModal] = useState(false);
+  const [editTargetActivity, setEditTargetActivity] = useState(null);
+  const [editTargetValue, setEditTargetValue] = useState('');
+  const [editTargetLoading, setEditTargetLoading] = useState(false);
 
   const userId = useMemo(() => currentUser?.uid, [currentUser?.uid]);
 
@@ -275,6 +309,129 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     });
   }
 
+  // Handler para adicionar atividade em dia anterior
+  async function handleAddPastActivity() {
+    setAddActivityError('');
+
+    if (!addActivityName.trim()) {
+      setAddActivityError('Digite o nome da atividade');
+      return;
+    }
+
+    if (addActivityType === 'timed') {
+      const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
+
+      if (!addActivityTime || !timeRegex.test(addActivityTime)) {
+        setAddActivityError('Tempo inválido (use HH:MM)');
+        return;
+      }
+
+      if (addActivityTarget && !timeRegex.test(addActivityTarget)) {
+        setAddActivityError('Meta inválida (use HH:MM)');
+        return;
+      }
+    }
+
+    try {
+      setAddActivityLoading(true);
+
+      if (addActivityType === 'binary') {
+        await addDoc(collection(db, 'activities', userId, 'entries'), {
+          userId,
+          userEmail: currentUser.email,
+          activity: addActivityName.trim(),
+          type: 'binary',
+          completed: true,
+          date: currentDate,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        const minutes = timeToMinutes(addActivityTime);
+        const targetMinutes = addActivityTarget ? timeToMinutes(addActivityTarget) : null;
+
+        await addDoc(collection(db, 'activities', userId, 'entries'), {
+          userId,
+          userEmail: currentUser.email,
+          activity: addActivityName.trim(),
+          type: 'timed',
+          minutes,
+          targetMinutes,
+          date: currentDate,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      // Reset e fecha modal
+      setAddActivityName('');
+      setAddActivityTime('');
+      setAddActivityTarget('');
+      setAddActivityType('timed');
+      setShowAddActivityModal(false);
+      onRefresh?.();
+    } catch (error) {
+      console.error('Erro ao adicionar atividade:', error);
+      setAddActivityError('Erro ao salvar atividade');
+    } finally {
+      setAddActivityLoading(false);
+    }
+  }
+
+  // Handler para abrir modal de editar meta
+  function handleOpenEditTarget(activityName) {
+    const data = aggregated[activityName];
+    setEditTargetActivity(activityName);
+    setEditTargetValue(data.target ? minutesToTime(data.target) : '');
+    setShowEditTargetModal(true);
+  }
+
+  // Handler para salvar nova meta do dia
+  // Handler para salvar nova meta do dia
+  async function handleSaveTarget() {
+    const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
+
+    if (editTargetValue && !timeRegex.test(editTargetValue)) {
+      alert('Formato inválido. Use HH:MM (ex: 01:30)');
+      return;
+    }
+
+    try {
+      setEditTargetLoading(true);
+      const newTargetMinutes = editTargetValue ? timeToMinutes(editTargetValue) : null;
+
+      // Atualiza TODAS as entradas desta atividade no dia atual
+      const entries = aggregated[editTargetActivity]?.entries || [];
+
+      await Promise.all(
+        entries.map((entry) =>
+          setDoc(
+            doc(db, 'activities', userId, 'entries', entry.id),
+            {
+              targetMinutes: newTargetMinutes,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          )
+        )
+      );
+
+      // Fecha o modal ANTES do refresh
+      setShowEditTargetModal(false);
+      setEditTargetActivity(null);
+      setEditTargetValue('');
+
+      // Aguarda um frame para garantir que o modal fechou
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Agora faz o refresh
+      onRefresh?.();
+    } catch (error) {
+      console.error('Erro ao atualizar meta:', error);
+      alert('Erro ao salvar meta');
+    } finally {
+      setEditTargetLoading(false);
+    }
+  }
+
   // ============================================
   // CLEANUP
   // ============================================
@@ -449,14 +606,31 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
             <div className="flex items-center justify-center py-24">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#8b8b8b]"></div>
             </div>
-          ) : Object.keys(aggregated).length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-[#8b8b8b] mb-2">Nenhuma atividade neste dia</p>
-              <p className="text-sm text-[#8b8b8b]/70">Adicione sua primeira atividade!</p>
-            </div>
           ) : (
             <div className="activity-grid">
               <AnimatePresence mode="popLayout">
+                {/* Card para adicionar atividade - SEMPRE VISÍVEL */}
+                <motion.div
+                  layout="position"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="activity-card group relative flex items-center justify-center gap-4 bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl border-2 border-dashed border-[#8b8b8b]/40 hover:border-[#8b8b8b] p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/20"
+                  onClick={() => setShowAddActivityModal(true)}
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-[#8b8b8b]/10 flex items-center justify-center">
+                      <Plus className="w-8 h-8 text-[#8b8b8b]" />
+                    </div>
+                    <p className="text-sm font-semibold text-[#8b8b8b]">Adicionar Atividade</p>
+                    <p className="text-xs text-[#8b8b8b]/60 mt-1">
+                      {Object.keys(aggregated).length === 0
+                        ? 'Adicione sua primeira atividade!'
+                        : 'Registrar atividade deste dia'}
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* Lista de atividades existentes */}
                 {Object.entries(aggregated).map(([name, data]) => {
                   const progress = data.target ? (data.total / data.target) * 100 : 0;
                   const isComplete = progress >= 100;
@@ -519,7 +693,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             )}
                           </div>
                         </div>
-
                         {/* Barra de progresso visual para binary */}
                         {data.type === 'binary' ? (
                           <div className="space-y-1">
@@ -553,19 +726,27 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             </p>
                           </div>
                         ) : null}
-
-                        {isToday(currentDate) && (
+                        {isToday(currentDate) ? (
+                          // DIA ATUAL: Botões rápidos para atividade em andamento
                           <div className="flex flex-wrap gap-2">
                             {data.type !== 'binary' && (
-                              <button
-                                onClick={() => handleAdjustTime(name, -30)}
-                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-                              >
-                                −30
-                              </button>
-                            )}
-                            {data.type !== 'binary' && (
                               <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEditTarget(name);
+                                  }}
+                                  className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
+                                >
+                                  <Target className="w-3.5 h-3.5" />
+                                  Meta
+                                </button>
+                                <button
+                                  onClick={() => handleAdjustTime(name, -30)}
+                                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+                                >
+                                  −30
+                                </button>
                                 <button
                                   onClick={() => handleStartTimer(name)}
                                   className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
@@ -594,6 +775,45 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                               </>
                             )}
                           </div>
+                        ) : (
+                          data.type !== 'binary' && (
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditTarget(name);
+                                }}
+                                className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
+                              >
+                                <Target className="w-3.5 h-3.5" />
+                                Meta
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, -30)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+                              >
+                                −30
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, 30)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
+                              >
+                                +30
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, 45)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+                              >
+                                +45
+                              </button>
+                              <button
+                                onClick={() => handleAdjustTime(name, 60)}
+                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+                              >
+                                +1h
+                              </button>
+                            </div>
+                          )
                         )}
                       </div>
 
@@ -611,7 +831,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           )}
         </div>
 
-        {/* Modal */}
+        {/* Modal de Atividade */}
         {openActivity && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -719,6 +939,184 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
             </motion.div>
           </motion.div>
         )}
+
+        {/* Modal Adicionar Atividade em Dia Anterior */}
+        <AnimatePresence>
+          {showAddActivityModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowAddActivityModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.96, y: 8 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.96, y: 8 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-md bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 p-6"
+              >
+                <h3 className="text-xl font-bold text-[#8b8b8b] font-cinzel mb-4">
+                  Adicionar Atividade
+                </h3>
+                <p className="text-sm text-[#8b8b8b]/70 mb-6">{formatDateDisplay(currentDate)}</p>
+
+                {addActivityError && (
+                  <div className="mb-4 p-3 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
+                    {addActivityError}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={addActivityName}
+                    onChange={(e) => setAddActivityName(e.target.value)}
+                    placeholder="Nome da atividade"
+                    className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setAddActivityType('timed')}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        addActivityType === 'timed'
+                          ? 'border-[#8b8b8b] bg-[#8b8b8b]/10'
+                          : 'border-[#8b8b8b]/30'
+                      }`}
+                    >
+                      <Clock className="w-5 h-5 mx-auto mb-1 text-[#8b8b8b]" />
+                      <span className="text-xs text-[#8b8b8b]">Com Tempo</span>
+                    </button>
+                    <button
+                      onClick={() => setAddActivityType('binary')}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        addActivityType === 'binary'
+                          ? 'border-[#8b8b8b] bg-[#8b8b8b]/10'
+                          : 'border-[#8b8b8b]/30'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-5 h-5 mx-auto mb-1 text-[#8b8b8b]" />
+                      <span className="text-xs text-[#8b8b8b]">Check</span>
+                    </button>
+                  </div>
+
+                  {addActivityType === 'timed' && (
+                    <>
+                      <input
+                        type="text"
+                        value={addActivityTime}
+                        onChange={(e) => setAddActivityTime(e.target.value)}
+                        placeholder="Tempo gasto (HH:MM)"
+                        maxLength={5}
+                        className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                      />
+                      <input
+                        type="text"
+                        value={addActivityTarget}
+                        onChange={(e) => setAddActivityTarget(e.target.value)}
+                        placeholder="Meta do dia (opcional, HH:MM)"
+                        maxLength={5}
+                        className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                      />
+                    </>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setShowAddActivityModal(false)}
+                      disabled={addActivityLoading}
+                      className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleAddPastActivity}
+                      disabled={addActivityLoading}
+                      className="flex-1 p-3 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {addActivityLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-[#1a1a1a] border-t-transparent rounded-full animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4" />
+                          Adicionar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Editar Meta do Dia */}
+        <AnimatePresence>
+          {showEditTargetModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowEditTargetModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.96, y: 8 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.96, y: 8 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-sm bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 p-6"
+              >
+                <h3 className="text-lg font-bold text-[#8b8b8b] font-cinzel mb-2">Ajustar Meta</h3>
+                <p className="text-sm text-[#8b8b8b]/70 mb-4">
+                  {editTargetActivity} • {formatDateDisplay(currentDate)}
+                </p>
+
+                <input
+                  type="text"
+                  value={editTargetValue}
+                  onChange={(e) => setEditTargetValue(e.target.value)}
+                  placeholder="Nova meta (HH:MM)"
+                  maxLength={5}
+                  className="w-full p-3 mb-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                />
+
+                <p className="text-xs text-[#8b8b8b]/60 mb-6">
+                  💡 Esta meta se aplica apenas ao dia {formatDateDisplay(currentDate)}
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowEditTargetModal(false)}
+                    disabled={editTargetLoading}
+                    className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveTarget}
+                    disabled={editTargetLoading}
+                    className="flex-1 p-3 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {editTargetLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-[#1a1a1a] border-t-transparent rounded-full animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Salvar'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <TimerModal
           isOpen={showTimerModal}

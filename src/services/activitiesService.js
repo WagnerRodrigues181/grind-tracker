@@ -8,6 +8,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 
 // ============================================
@@ -45,6 +46,25 @@ export const addCustomActivityTemplate = async (userId, { name, type, time = '',
     target, // ex: "04:00"
     userId,
     createdAt: serverTimestamp(),
+  });
+};
+
+/**
+ * Atualiza um template de atividade personalizada existente
+ * @param {string} userId - ID do usuário
+ * @param {string} templateId - ID do documento do template
+ * @param {Object} updates - Dados a serem atualizados
+ * @param {string} updates.name - Novo nome (opcional)
+ * @param {string} updates.type - Novo tipo (opcional)
+ * @param {string} updates.time - Novo tempo padrão (opcional)
+ * @param {string} updates.target - Nova meta (opcional)
+ * @returns {Promise<void>}
+ */
+export const updateCustomActivityTemplate = async (userId, templateId, updates) => {
+  const docRef = doc(db, 'users', userId, 'customActivities', templateId);
+  return await updateDoc(docRef, {
+    ...updates,
+    updatedAt: serverTimestamp(),
   });
 };
 
