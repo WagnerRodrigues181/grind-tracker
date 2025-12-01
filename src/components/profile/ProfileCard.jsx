@@ -503,22 +503,7 @@ export default function ProfileCard({ onClose }) {
                     )}
 
                     <div className="flex gap-3 w-full pt-2">
-                      <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex-1 px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-xl font-bold text-sm hover:scale-105 transition-all shadow-lg hover:shadow-xl hover:shadow-green-600/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                      >
-                        <Check className="w-4 h-4" />
-                        {saving ? 'Salvando...' : 'Salvar'}
-                      </button>
-                      <button
-                        onClick={handleCancel}
-                        disabled={saving}
-                        className="flex-1 px-5 py-3 bg-[#252525] hover:bg-[#2a2a2a] text-[#8b8b8b] rounded-xl font-bold text-sm border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <X className="w-4 h-4" />
-                        Cancelar
-                      </button>
+                      Edição de perfil restrita no modo demo por questões de segurança.
                     </div>
                   </div>
                 </>
