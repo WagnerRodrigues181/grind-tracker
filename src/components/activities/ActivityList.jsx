@@ -53,6 +53,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   const { startTimer } = useTimer();
 
   const [activities, setActivities] = useState([]);
+  const [isCustomMode, setIsCustomMode] = useState(false);
   const [aggregated, setAggregated] = useState({});
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -314,7 +315,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     setAddActivityError('');
 
     // Limpa o nome se for 'custom'
-    const activityName = addActivityName === 'custom' ? '' : addActivityName.trim();
+    const activityName = isCustomMode ? addActivityName.trim() : addActivityName.trim();
 
     if (!activityName) {
       setAddActivityError('Digite o nome da atividade');
@@ -369,6 +370,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
       setAddActivityTime('');
       setAddActivityTarget('');
       setAddActivityType('timed');
+      setIsCustomMode(false);
       setShowAddActivityModal(false);
       onRefresh?.();
     } catch (error) {
@@ -387,7 +389,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     setShowEditTargetModal(true);
   }
 
-  // Handler para salvar nova meta do dia
   // Handler para salvar nova meta do dia
   async function handleSaveTarget() {
     const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
@@ -983,6 +984,9 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                         const selectedName = e.target.value;
                         setAddActivityName(selectedName);
 
+                        // Define modo personalizado
+                        setIsCustomMode(selectedName === 'custom');
+
                         // Se selecionou uma atividade predefinida, preenche os campos automaticamente
                         if (selectedName && selectedName !== 'custom') {
                           const activity = customActivities.find((a) => a.name === selectedName);
@@ -1008,10 +1012,10 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                   </div>
 
                   {/* CAMPO DE NOME PERSONALIZADO */}
-                  {(addActivityName === 'custom' || addActivityName === '') && (
+                  {(isCustomMode || addActivityName === '') && (
                     <input
                       type="text"
-                      value={addActivityName === 'custom' ? '' : addActivityName}
+                      value={isCustomMode && addActivityName === 'custom' ? '' : addActivityName}
                       onChange={(e) => setAddActivityName(e.target.value)}
                       placeholder="Nome da atividade"
                       className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
