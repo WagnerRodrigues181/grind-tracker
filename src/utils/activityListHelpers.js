@@ -42,6 +42,7 @@ import corridaImg from '../assets/Corrida.webp';
 import bikeImg from '../assets/Bike.webp';
 import dietaCuttingImg from '../assets/Dieta (cutting).webp';
 import dietaBulkingImg from '../assets/Dieta (bulking).webp';
+import higieneImg from '../assets/Higiene.webp';
 
 export const activityImages = {
   Pesquisa: pesquisaImg,
@@ -56,6 +57,7 @@ export const activityImages = {
   'Dieta (cutting)': dietaCuttingImg,
   'Dieta (bulking)': dietaBulkingImg,
   Bike: bikeImg,
+  Higiene: higieneImg,
 };
 
 export function getActivityImage(activityName) {

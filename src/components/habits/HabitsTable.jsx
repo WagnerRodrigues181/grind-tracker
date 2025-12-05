@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Flame } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  getUserHabits,
   addHabit,
   removeHabit,
   getMonthTracking,
   toggleHabitDay,
   getHabitDuration,
 } from '../../services/habitsService';
+import { getUserHabitsOrdered, updateHabitsOrder } from '../../services/habitsService';
 import {
   addDoc,
   collection,
@@ -25,6 +25,25 @@ import { useAuth } from '../../contexts/AuthContext';
 import { timeToMinutes } from '../../utils/dateHelpers';
 import { addCustomActivityTemplate } from '../../services/activitiesService';
 
+// Drag and Drop
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 // ============================================
 // 🔍 SISTEMA DE DEBUG COMPLETO
 // ============================================
@@ -38,6 +57,113 @@ function debugLog(section, data) {
 }
 // ============================================
 
+// ============================================
+// 🎯 COMPONENTE DE LINHA ARRASTÁVEL
+// ============================================
+function SortableHabitRow({
+  habit,
+  calendar,
+  currentMonthTracking,
+  prevMonthTracking,
+  nextMonthTracking,
+  pulsingDays,
+  particles,
+  onToggleDay,
+  onRemove,
+  isChecked,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: habit,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className="border-b border-[#8b8b8b]/20 hover:bg-[#252525]/40 transition-all duration-200 habit-row"
+    >
+      {/* Coluna do nome com grip - OTIMIZADA */}
+      <td className="sticky left-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 border-r border-[#8b8b8b]/30 habit-name-cell">
+        <div className="habit-name-container">
+          <button
+            {...attributes}
+            {...listeners}
+            className="grip-icon cursor-grab active:cursor-grabbing text-[#8b8b8b]/50 hover:text-[#8b8b8b] transition-colors flex-shrink-0"
+            title="Arraste para reordenar"
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+          <span className="habit-name-text" title={habit}>
+            {habit}
+          </span>
+        </div>
+      </td>
+
+      {/* Dias do calendário */}
+      {calendar.weeks.map((week, weekIdx) =>
+        week.map((cellData, dayIdx) => {
+          const checked = isChecked(habit, cellData);
+          const isCurrent = cellData.belongsTo === 'current';
+          const pulseKey = `${habit}-${cellData.day}`;
+          const isPulsing = pulsingDays[pulseKey];
+
+          return (
+            <td
+              key={`${weekIdx}-${dayIdx}`}
+              className={`px-1 py-2 text-center relative ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
+            >
+              {particles
+                .filter((p) => p.habitName === habit && p.day === cellData.day)
+                .map((p) => (
+                  <div
+                    key={p.id}
+                    className="particle-effect"
+                    style={{
+                      '--tx': `${Math.cos((p.angle * Math.PI) / 180) * 30}px`,
+                      '--ty': `${Math.sin((p.angle * Math.PI) / 180) * 30}px`,
+                    }}
+                  />
+                ))}
+              <button
+                onClick={isCurrent ? () => onToggleDay(habit, cellData) : undefined}
+                disabled={!isCurrent}
+                className={`w-5 h-5 rounded-full transition-all duration-200 relative ${isPulsing ? 'pulse-ritual' : ''} ${
+                  checked
+                    ? isCurrent
+                      ? 'bg-gradient-to-br from-[#00C853] to-[#00E676] border-2 border-[#00E676] shadow-lg shadow-green-500/30'
+                      : 'bg-gradient-to-br from-[#00993d] to-[#00b359] border-2 border-[#00b359]'
+                    : isCurrent
+                      ? 'bg-transparent border-2 border-[#8b8b8b]/30 hover:border-[#8b8b8b] hover:bg-[#8b8b8b]/10 hover:scale-110'
+                      : 'bg-[#1a1a1a] border-2 border-[#1a1a1a]'
+                } ${!isCurrent ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              />
+            </td>
+          );
+        })
+      )}
+
+      {/* Botão remover */}
+      <td className="sticky right-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 border-l border-[#8b8b8b]/30">
+        <button
+          onClick={() => onRemove(habit)}
+          className="p-1 text-red-400 hover:text-red-300 rounded transition-all duration-200 trash-hover"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ============================================
+// 📋 COMPONENTE PRINCIPAL
+// ============================================
 export default function HabitsTable({ onActivityAdded }) {
   const { currentUser } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -53,17 +179,31 @@ export default function HabitsTable({ onActivityAdded }) {
   const [error, setError] = useState('');
   const [showPredefinedSelect, setShowPredefinedSelect] = useState(false);
   const [availableActivities, setAvailableActivities] = useState([]);
+  const [activeId, setActiveId] = useState(null);
 
   // === ESTADO VISUAL ===
   const [pulsingDays, setPulsingDays] = useState({});
   const [fireEmoji, setFireEmoji] = useState({});
   const [particles, setParticles] = useState([]);
   const [arrowPulse, setArrowPulse] = useState({ left: false, right: false });
+  const [isTransitioning, setIsTransitioning] = useState(false); // ← NOVO
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
-  // === DEBUG DO CALENDÁRIO GERADO (AGORA DENTRO DO ESCOPO) ===
+  // === SENSORES DRAG AND DROP ===
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // === DEBUG DO CALENDÁRIO ===
   useEffect(() => {
     if (DEBUG) {
       const calendar = generateCalendar(year, month);
@@ -81,43 +221,22 @@ export default function HabitsTable({ onActivityAdded }) {
       });
     }
   }, [year, month]);
-  // ============================================
 
-  // Carrega atividades do Firestore em tempo real
+  // === CARREGA ATIVIDADES ===
   useEffect(() => {
     if (!currentUser?.uid) {
       setAvailableActivities([]);
       return;
     }
 
-    debugLog('INICIANDO LISTENER FIRESTORE', {
-      userId: currentUser.uid,
-      timestamp: new Date().toISOString(),
-    });
-
     const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
-      debugLog('ATIVIDADES RECEBIDAS DO FIRESTORE', {
-        count: activities.length,
-        activities: activities.map((a) => ({
-          id: a.id,
-          name: a.name,
-          type: a.type,
-          time: a.time,
-          target: a.target,
-        })),
-      });
       setAvailableActivities(activities);
     });
 
-    return () => {
-      debugLog('DESMONTANDO LISTENER FIRESTORE', {
-        userId: currentUser.uid,
-      });
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [currentUser]);
 
-  // Carrega dados do Firebase
+  // === CARREGA DADOS DO FIREBASE COM TRANSIÇÃO ===
   useEffect(() => {
     async function loadData() {
       if (!currentUser) {
@@ -125,12 +244,14 @@ export default function HabitsTable({ onActivityAdded }) {
         return;
       }
 
+      setIsTransitioning(true); // ← Inicia transição
       setLoading(true);
+
       try {
         const { prevYear, prevMonth, nextYear, nextMonth } = getAdjacentMonths(year, month);
 
         const [habitsData, currentTracking, prevTracking, nextTracking] = await Promise.all([
-          getUserHabits(currentUser.uid),
+          getUserHabitsOrdered(currentUser.uid),
           getMonthTracking(currentUser.uid, year, month),
           getMonthTracking(currentUser.uid, prevYear, prevMonth),
           getMonthTracking(currentUser.uid, nextYear, nextMonth),
@@ -144,11 +265,40 @@ export default function HabitsTable({ onActivityAdded }) {
         console.error('Erro ao carregar dados:', error);
       } finally {
         setLoading(false);
+        // Pequeno delay para permitir a animação de entrada
+        setTimeout(() => setIsTransitioning(false), 100);
       }
     }
 
     loadData();
   }, [currentUser, year, month]);
+
+  // === HANDLERS DE DRAG ===
+  function handleDragStart(event) {
+    setActiveId(event.active.id);
+    document.body.classList.add('dragging');
+  }
+
+  async function handleDragEnd(event) {
+    document.body.classList.remove('dragging');
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      setHabits((items) => {
+        const oldIndex = items.indexOf(active.id);
+        const newIndex = items.indexOf(over.id);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+
+        updateHabitsOrder(currentUser.uid, newOrder).catch((error) => {
+          console.error('Erro ao salvar ordem:', error);
+        });
+
+        return newOrder;
+      });
+    }
+
+    setActiveId(null);
+  }
 
   function goToPreviousMonth() {
     setArrowPulse({ ...arrowPulse, left: true });
@@ -164,25 +314,13 @@ export default function HabitsTable({ onActivityAdded }) {
 
   async function handleAddHabitFromPredefined(activity) {
     try {
-      debugLog('ADICIONANDO HÁBITO PRÉ-DEFINIDO', {
-        activityId: activity.id,
-        name: activity.name,
-        time: activity.time,
-        type: activity.type,
-      });
-
       await addHabit(currentUser.uid, activity.name, activity.time || '00:30');
       setShowPredefinedSelect(false);
       setShowAddModal(false);
       setError('');
 
-      const habitsData = await getUserHabits(currentUser.uid);
+      const habitsData = await getUserHabitsOrdered(currentUser.uid);
       setHabits(habitsData);
-
-      debugLog('HÁBITO ADICIONADO COM SUCESSO', {
-        habitName: activity.name,
-        totalHabits: habitsData.length,
-      });
     } catch (error) {
       console.error('Erro ao adicionar hábito:', error);
       setError(error.message);
@@ -206,22 +344,19 @@ export default function HabitsTable({ onActivityAdded }) {
       return;
     }
 
-    // valida meta se fornecida
     if (newHabitTarget.trim() && !timeRegex.test(newHabitTarget)) {
       setError('Formato de meta inválido. Use HH:MM (ex: 04:00)');
       return;
     }
 
     try {
-      // Adiciona o hábito no sistema de hábitos
       await addHabit(currentUser.uid, newHabitName.trim(), newHabitDuration.trim());
 
-      // Adiciona como template de atividade customizada (COM TYPE E TARGET)
       await addCustomActivityTemplate(currentUser.uid, {
         name: newHabitName.trim(),
-        type: 'timed', // hábitos são sempre timed
+        type: 'timed',
         time: newHabitDuration.trim(),
-        target: newHabitTarget.trim() || '', // agora salva a meta
+        target: newHabitTarget.trim() || '',
       });
 
       setNewHabitName('');
@@ -231,7 +366,7 @@ export default function HabitsTable({ onActivityAdded }) {
       setShowPredefinedSelect(false);
       setError('');
 
-      const habitsData = await getUserHabits(currentUser.uid);
+      const habitsData = await getUserHabitsOrdered(currentUser.uid);
       setHabits(habitsData);
     } catch (error) {
       console.error('Erro ao adicionar hábito:', error);
@@ -244,7 +379,7 @@ export default function HabitsTable({ onActivityAdded }) {
 
     try {
       await removeHabit(currentUser.uid, habitName);
-      const habitsData = await getUserHabits(currentUser.uid);
+      const habitsData = await getUserHabitsOrdered(currentUser.uid);
       setHabits(habitsData);
     } catch (error) {
       console.error('Erro ao remover hábito:', error);
@@ -252,19 +387,9 @@ export default function HabitsTable({ onActivityAdded }) {
   }
 
   async function handleToggleDay(habitName, cellData) {
-    debugLog('handleToggleDay - INÍCIO', {
-      habitName,
-      cellData,
-      currentYear: year,
-      currentMonth: month,
-      currentDateState: currentDate,
-    });
-    if (!habitName || !currentUser?.uid) {
-      console.warn('⚠️ Hábito ou usuário inválido');
-      return;
-    }
+    if (!habitName || !currentUser?.uid) return;
+
     try {
-      // Determina ano, mês e dia corretos baseado em belongsTo
       let targetYear, targetMonth, targetDay;
 
       if (cellData.belongsTo === 'current') {
@@ -282,22 +407,11 @@ export default function HabitsTable({ onActivityAdded }) {
         targetMonth = nextMonth;
         targetDay = cellData.day;
       }
-      debugLog('handleToggleDay - DATA CALCULADA', {
-        belongsTo: cellData.belongsTo,
-        targetYear,
-        targetMonth,
-        targetDay,
-        dateString: `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`,
-      });
+
       const dayKey = String(targetDay).padStart(2, '0');
       const currentValue = currentMonthTracking[habitName]?.[dayKey] === true;
       const pulseKey = `${habitName}-${targetDay}`;
-      debugLog('handleToggleDay - ESTADO ATUAL', {
-        dayKey,
-        currentValue,
-        willBeChecked: !currentValue,
-        pulseKey,
-      });
+
       setPulsingDays((prev) => ({ ...prev, [pulseKey]: true }));
       setTimeout(
         () =>
@@ -308,6 +422,7 @@ export default function HabitsTable({ onActivityAdded }) {
           }),
         600
       );
+
       if (!currentValue) {
         const newParticles = Array.from({ length: 4 }, (_, i) => ({
           id: `${pulseKey}-${i}-${Date.now()}`,
@@ -319,11 +434,13 @@ export default function HabitsTable({ onActivityAdded }) {
         setTimeout(() => {
           setParticles((prev) => prev.filter((p) => !newParticles.some((np) => np.id === p.id)));
         }, 800);
+
         const totalHabits = habits.length;
         const completedAfterToggle = habits.filter((h) => {
           if (h === habitName) return true;
           return currentMonthTracking[h]?.[dayKey] === true;
         }).length;
+
         if (completedAfterToggle === totalHabits) {
           const fireKey = `fire-${targetDay}`;
           setFireEmoji((prev) => ({ ...prev, [fireKey]: true }));
@@ -336,6 +453,7 @@ export default function HabitsTable({ onActivityAdded }) {
           }, 1500);
         }
       }
+
       setCurrentMonthTracking((prev) => ({
         ...prev,
         [habitName]: {
@@ -343,50 +461,18 @@ export default function HabitsTable({ onActivityAdded }) {
           [dayKey]: !currentValue,
         },
       }));
-      debugLog('handleToggleDay - ANTES toggleHabitDay', {
-        userId: currentUser.uid,
-        targetYear,
-        targetMonth,
-        targetDay,
-        habitName,
-      });
-      await toggleHabitDay(currentUser.uid, targetYear, targetMonth, targetDay, habitName);
-      debugLog('handleToggleDay - DEPOIS toggleHabitDay', {
-        success: true,
-        willRegisterActivity: !currentValue,
-      });
-      if (!currentValue) {
-        debugLog('handleToggleDay - REGISTRANDO ATIVIDADE', {
-          habitName,
-          targetYear,
-          targetMonth,
-          targetDay,
-        });
 
+      await toggleHabitDay(currentUser.uid, targetYear, targetMonth, targetDay, habitName);
+
+      if (!currentValue) {
         await registerHabitAsActivity(habitName, targetYear, targetMonth, targetDay);
         onActivityAdded?.(habitName);
-
-        debugLog('handleToggleDay - ATIVIDADE REGISTRADA', { success: true });
       } else {
-        debugLog('handleToggleDay - REMOVENDO ATIVIDADE', {
-          habitName,
-          targetYear,
-          targetMonth,
-          targetDay,
-        });
-
         await removeHabitActivity(habitName, targetYear, targetMonth, targetDay);
         onActivityAdded?.();
-
-        debugLog('handleToggleDay - ATIVIDADE REMOVIDA', { success: true });
       }
     } catch (error) {
       console.error('❌ Erro em handleToggleDay:', error);
-      debugLog('handleToggleDay - ERRO', {
-        error: error.message,
-        stack: error.stack,
-      });
-
       const tracking = await getMonthTracking(currentUser.uid, year, month);
       setCurrentMonthTracking(tracking);
     }
@@ -415,8 +501,6 @@ export default function HabitsTable({ onActivityAdded }) {
       if (!duration) return;
 
       const minutes = timeToMinutes(duration);
-
-      // SEMPRE calcula e salva targetMinutes
       const targetMinutes = matchingActivity?.target
         ? timeToMinutes(matchingActivity.target)
         : null;
@@ -425,7 +509,7 @@ export default function HabitsTable({ onActivityAdded }) {
         activity: habitName,
         type: 'timed',
         minutes,
-        targetMinutes, // ← agora sempre salva
+        targetMinutes,
         date: dateStr,
         createdAt: serverTimestamp(),
         userId: currentUser.uid,
@@ -439,57 +523,22 @@ export default function HabitsTable({ onActivityAdded }) {
   async function removeHabitActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    debugLog('removeHabitActivity - INÍCIO', {
-      habitName,
-      year,
-      month,
-      day,
-      dateStr,
-      userId: currentUser.uid,
-    });
     try {
       const q = query(
         collection(db, 'activities', currentUser.uid, 'entries'),
         where('activity', '==', habitName),
         where('date', '==', dateStr)
       );
-      debugLog('removeHabitActivity - QUERY', {
-        collectionPath: `activities/${currentUser.uid}/entries`,
-        whereActivity: habitName,
-        whereDate: dateStr,
-      });
-      const snapshot = await getDocs(q);
 
-      debugLog('removeHabitActivity - DOCUMENTOS ENCONTRADOS', {
-        count: snapshot.docs.length,
-        docs: snapshot.docs.map((d) => ({
-          id: d.id,
-          data: d.data(),
-        })),
-      });
+      const snapshot = await getDocs(q);
       const deletePromises = snapshot.docs.map((docSnap) =>
         deleteDoc(doc(db, 'activities', currentUser.uid, 'entries', docSnap.id))
       );
 
       await Promise.all(deletePromises);
-      debugLog('removeHabitActivity - SUCESSO', {
-        deletedCount: snapshot.docs.length,
-        dateStr,
-      });
-      console.log('✅ Atividade(s) removida(s) com sucesso!', {
-        habit: habitName,
-        date: dateStr,
-        count: snapshot.docs.length,
-      });
       onActivityAdded?.();
     } catch (error) {
       console.error('❌ Erro ao remover atividade:', error);
-      debugLog('removeHabitActivity - ERRO', {
-        error: error.message,
-        stack: error.stack,
-        habitName,
-        dateStr,
-      });
       throw error;
     }
   }
@@ -525,6 +574,55 @@ export default function HabitsTable({ onActivityAdded }) {
         
         .font-cinzel { font-family: 'Cinzel Decorative', serif; }
         .font-inter { font-family: 'Inter', sans-serif; }
+
+        /* ========================================
+           🎯 CSS OTIMIZADO PARA NOMES DOS HÁBITOS
+           ======================================== */
+        .habit-name-cell {
+          width: 200px; /* Aumentado de 96px para 200px */
+          min-width: 200px;
+          max-width: 200px;
+        }
+
+        .habit-name-container {
+          display: flex;
+          align-items: center;
+          gap: 8px; /* Espaço confortável entre grip e texto */
+          width: 100%;
+          padding: 0.5rem 0.75rem;
+        }
+
+        .habit-name-text {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 11px;
+          font-weight: 600;
+          color: #8b8b8b;
+          transition: all 0.2s;
+          min-width: 0; /* Permite que o texto seja cortado corretamente */
+        }
+
+        .grip-icon {
+          flex-shrink: 0;
+          width: 20px;
+          height: 20px;
+          opacity: 0.4;
+          transition: opacity 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .habit-row:hover .grip-icon {
+          opacity: 1;
+        }
+
+        .habit-row:hover .habit-name-text {
+          color: #a0a0a0;
+          text-shadow: 0 0 8px rgba(139,139,139,0.6);
+        }
         
         @keyframes pulse-ritual {
           0%, 100% { transform: scale(1); }
@@ -556,46 +654,47 @@ export default function HabitsTable({ onActivityAdded }) {
         .fire-emoji { position: absolute; font-size: 20px; animation: fire-appear 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; z-index: 50; }
         .rotating-ring { animation: rotate-ring 8s linear infinite; }
         .diagonal-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(139,139,139,0.03) 10px, rgba(139,139,139,0.03) 20px); }
-        .habit-row:hover .habit-name { text-shadow: 0 0 12px rgba(139,139,139,0.8); }
         .trash-hover:hover { transform: rotate(15deg) scale(1.1); filter: drop-shadow(0 0 6px rgba(239,68,68,0.6)); }
         .plus-rotate:hover { transform: rotate(90deg); }
         .arrow-pulse { animation: pulse-ritual 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 
-        /* Scrollbar personalizado para o container de atividades */
-        .scroll-container::-webkit-scrollbar { 
-          width: 8px; 
-        }
-        .scroll-container::-webkit-scrollbar-track { 
-          background: #1a1a1a; 
-          border-radius: 10px;
-          margin: 8px 0;
-        }
-        .scroll-container::-webkit-scrollbar-thumb { 
-          background: linear-gradient(180deg, #8b8b8b, #6b6b6b); 
-          border-radius: 10px;
-          border: 2px solid #1a1a1a;
-          transition: background 0.3s ease;
-        }
-        .scroll-container::-webkit-scrollbar-thumb:hover { 
-          background: linear-gradient(180deg, #a0a0a0, #808080);
-        }
-        
-        /* Firefox */
-        .scroll-container {
-          scrollbar-width: thin;
-          scrollbar-color: #8b8b8b #1a1a1a;
+        .scroll-container::-webkit-scrollbar { width: 8px; }
+        .scroll-container::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 10px; margin: 8px 0; }
+        .scroll-container::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #8b8b8b, #6b6b6b); border-radius: 10px; border: 2px solid #1a1a1a; transition: background 0.3s ease; }
+        .scroll-container::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #a0a0a0, #808080); }
+        .scroll-container { scrollbar-width: thin; scrollbar-color: #8b8b8b #1a1a1a; }
+
+        .activity-card { transition: background-color 0.3s ease, border-color 0.3s ease; }
+        .activity-card:hover { background-color: #252525 !important; border-color: #8b8b8b !important; }
+
+        /* Previne scroll horizontal durante drag */
+        .overflow-x-auto {
+          overflow-x: auto;
+          overflow-y: visible; /* Permite o DragOverlay aparecer */
         }
 
-        .activity-card {
-          transition: background-color 0.3s ease, border-color 0.3s ease;
+        /* Container da tabela - força contenção */
+        .habits-table-wrapper {
+          position: relative;
+          overflow: hidden; /* Esconde qualquer overflow durante drag */
+          width: 100%;
         }
-        .activity-card:hover {
-          background-color: #252525 !important;
-          border-color: #8b8b8b !important;
+
+        /* Durante o drag, previne scroll */
+        body.dragging {
+          overflow: hidden !important;
+        }
+
+        /* Elemento sendo arrastado não deve causar overflow */
+        [data-dnd-kit-dragging] {
+          position: fixed !important;
+          z-index: 9999;
+          pointer-events: none;
         }
       `}</style>
 
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter relative">
+        {/* Header */}
         <div className="p-6 border-b-2 border-[#8b8b8b]/30 bg-gradient-to-br from-[#1e1e1e] to-[#252525] diagonal-pattern relative">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#8b8b8b]/5 to-transparent"></div>
           <div className="flex items-center justify-between relative z-10">
@@ -634,170 +733,149 @@ export default function HabitsTable({ onActivityAdded }) {
           </div>
         </div>
 
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-[#8b8b8b]/30 scrollbar-track-transparent">
-          <div className="min-w-full max-w-[1400px] mx-auto">
-            <table className="w-full min-w-[1000px] table-fixed border-collapse">
-              <thead>
-                <tr className="bg-[#252525]">
-                  <th className="sticky left-0 z-20 bg-[#252525] px-3 py-2 text-left font-bold text-[#8b8b8b] border-r border-[#8b8b8b]/30 w-24">
-                    Hábitos
-                  </th>
-                  {calendar.weeks.map((_, idx) => (
-                    <th
-                      key={idx}
-                      colSpan={7}
-                      className="px-2 py-2 text-center font-semibold text-[#8b8b8b] border-l border-[#8b8b8b]/30"
-                    >
-                      {year}
+        {/* Tabela com Drag & Drop e TRANSIÇÃO SUAVE */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${year}-${month}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="habits-table-wrapper overflow-x-auto scrollbar-thin scrollbar-thumb-[#8b8b8b]/30 scrollbar-track-transparent"
+          >
+            <div className="min-w-full max-w-[1400px] mx-auto">
+              <table className="w-full min-w-[1000px] table-fixed border-collapse">
+                {/* Headers */}
+                <thead>
+                  <tr className="bg-[#252525]">
+                    <th className="sticky left-0 z-20 bg-[#252525] px-3 py-2 text-left font-bold text-[#8b8b8b] border-r border-[#8b8b8b]/30 habit-name-cell">
+                      Hábitos
                     </th>
-                  ))}
-                  <th className="sticky right-0 z-20 bg-[#252525] border-l border-[#8b8b8b]/30 w-8"></th>
-                </tr>
-                <tr className="bg-[#252525]">
-                  <th className="sticky left-0 z-20 bg-[#252525] border-r border-[#8b8b8b]/30"></th>
-                  {calendar.weeks.map((_, idx) => (
-                    <th
-                      key={idx}
-                      colSpan={7}
-                      className="px-2 py-2 text-center text-[10px] font-medium text-[#8b8b8b]/70 border-l border-[#8b8b8b]/30"
-                    >
-                      Semana {idx + 1}
-                    </th>
-                  ))}
-                  <th className="sticky right-0 z-20 bg-[#252525] border-l border-[#8b8b8b]/30"></th>
-                </tr>
-                <tr className="bg-[#1e1e1e] border-b-2 border-[#8b8b8b]/40">
-                  <th className="sticky left-0 z-20 bg-[#1e1e1e] border-r border-[#8b8b8b]/30"></th>
-                  {calendar.weeks.map((week, weekIdx) =>
-                    week.map((_, dayIdx) => (
+                    {calendar.weeks.map((_, idx) => (
                       <th
-                        key={`${weekIdx}-${dayIdx}`}
-                        className={`px-1 py-2 text-center text-[10px] font-medium text-[#8b8b8b]/80 ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
+                        key={idx}
+                        colSpan={7}
+                        className="px-2 py-2 text-center font-semibold text-[#8b8b8b] border-l border-[#8b8b8b]/30"
                       >
-                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dayIdx]}
+                        {year}
                       </th>
-                    ))
-                  )}
-                  <th className="sticky right-0 z-20 bg-[#1e1e1e] border-l border-[#8b8b8b]/30"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {habits.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={calendar.weeks.length * 7 + 2}
-                      className="px-4 py-12 text-center text-[#8b8b8b]/50 text-sm"
-                    >
-                      Nenhum hábito cadastrado
-                    </td>
+                    ))}
+                    <th className="sticky right-0 z-20 bg-[#252525] border-l border-[#8b8b8b]/30 w-8"></th>
                   </tr>
-                ) : (
-                  habits.map((habit) => (
-                    <tr
-                      key={habit}
-                      className="border-b border-[#8b8b8b]/20 hover:bg-[#252525]/40 transition-all duration-200 habit-row"
-                    >
-                      <td className="sticky left-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 px-3 py-2 text-[11px] font-semibold text-[#8b8b8b] border-r border-[#8b8b8b]/30 truncate habit-name transition-all duration-200">
-                        {habit}
-                      </td>
-                      {calendar.weeks.map((week, weekIdx) =>
-                        week.map((cellData, dayIdx) => {
-                          const checked = isChecked(habit, cellData);
-                          const isCurrent = cellData.belongsTo === 'current';
-                          const pulseKey = `${habit}-${cellData.day}`;
-                          const isPulsing = pulsingDays[pulseKey];
-
-                          return (
-                            <td
-                              key={`${weekIdx}-${dayIdx}`}
-                              className={`px-1 py-2 text-center relative ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
-                            >
-                              {particles
-                                .filter((p) => p.habitName === habit && p.day === cellData.day)
-                                .map((p) => (
-                                  <div
-                                    key={p.id}
-                                    className="particle-effect"
-                                    style={{
-                                      '--tx': `${Math.cos((p.angle * Math.PI) / 180) * 30}px`,
-                                      '--ty': `${Math.sin((p.angle * Math.PI) / 180) * 30}px`,
-                                    }}
-                                  />
-                                ))}
-                              <button
-                                onClick={
-                                  isCurrent ? () => handleToggleDay(habit, cellData) : undefined
-                                }
-                                disabled={!isCurrent}
-                                className={`w-5 h-5 rounded-full transition-all duration-200 relative ${isPulsing ? 'pulse-ritual' : ''} ${
-                                  checked
-                                    ? isCurrent
-                                      ? 'bg-gradient-to-br from-[#00C853] to-[#00E676] border-2 border-[#00E676] shadow-lg shadow-green-500/30'
-                                      : 'bg-gradient-to-br from-[#00993d] to-[#00b359] border-2 border-[#00b359]'
-                                    : isCurrent
-                                      ? 'bg-transparent border-2 border-[#8b8b8b]/30 hover:border-[#8b8b8b] hover:bg-[#8b8b8b]/10 hover:scale-110'
-                                      : 'bg-[#1a1a1a] border-2 border-[#1a1a1a]'
-                                } ${!isCurrent ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                              />
-                            </td>
-                          );
-                        })
-                      )}
-                      <td className="sticky right-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 border-l border-[#8b8b8b]/30">
-                        <button
-                          onClick={() => handleRemoveHabit(habit)}
-                          className="p-1 text-red-400 hover:text-red-300 rounded transition-all duration-200 trash-hover"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-
-                {habits.length > 0 && (
-                  <tr className="bg-[#252525] border-t-2 border-[#8b8b8b]/40">
-                    <td className="sticky left-0 z-10 bg-[#252525] px-3 py-2 text-[11px] font-bold text-[#8b8b8b] border-r border-[#8b8b8b]/30">
-                      Total %
-                    </td>
+                  <tr className="bg-[#252525]">
+                    <th className="sticky left-0 z-20 bg-[#252525] border-r border-[#8b8b8b]/30"></th>
+                    {calendar.weeks.map((_, idx) => (
+                      <th
+                        key={idx}
+                        colSpan={7}
+                        className="px-2 py-2 text-center text-[10px] font-medium text-[#8b8b8b]/70 border-l border-[#8b8b8b]/30"
+                      >
+                        Semana {idx + 1}
+                      </th>
+                    ))}
+                    <th className="sticky right-0 z-20 bg-[#252525] border-l border-[#8b8b8b]/30"></th>
+                  </tr>
+                  <tr className="bg-[#1e1e1e] border-b-2 border-[#8b8b8b]/40">
+                    <th className="sticky left-0 z-20 bg-[#1e1e1e] border-r border-[#8b8b8b]/30"></th>
                     {calendar.weeks.map((week, weekIdx) =>
-                      week.map((cellData, dayIdx) => {
-                        const completion = getDayCompletion(cellData);
-                        const colorClass =
-                          completion >= 80
-                            ? 'bg-green-500'
-                            : completion >= 50
-                              ? 'bg-yellow-500'
-                              : 'bg-red-500';
-                        const fireKey = `fire-${cellData.day}`;
-                        const showFire = fireEmoji[fireKey] && cellData.belongsTo === 'current';
-
-                        return (
-                          <td
-                            key={`${weekIdx}-${dayIdx}`}
-                            className={`px-1 py-2 text-center relative ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
-                          >
-                            {showFire && <div className="fire-emoji">🔥</div>}
-                            <div
-                              className={`w-6 h-6 mx-auto flex items-center justify-center text-[9px] font-bold text-white ${colorClass} rounded-md shadow-lg relative overflow-hidden`}
-                            >
-                              {completion >= 80 && (
-                                <div className="absolute inset-0 border-2 border-[#8b8b8b]/40 rounded-md rotating-ring"></div>
-                              )}
-                              <span className="relative z-10">{completion}%</span>
-                            </div>
-                          </td>
-                        );
-                      })
+                      week.map((_, dayIdx) => (
+                        <th
+                          key={`${weekIdx}-${dayIdx}`}
+                          className={`px-1 py-2 text-center text-[10px] font-medium text-[#8b8b8b]/80 ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
+                        >
+                          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dayIdx]}
+                        </th>
+                      ))
                     )}
-                    <td className="sticky right-0 z-10 bg-[#252525] border-l border-[#8b8b8b]/30"></td>
+                    <th className="sticky right-0 z-20 bg-[#1e1e1e] border-l border-[#8b8b8b]/30"></th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                </thead>
 
+                {/* Body com Drag & Drop */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext items={habits} strategy={verticalListSortingStrategy}>
+                    <tbody>
+                      {habits.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={calendar.weeks.length * 7 + 2}
+                            className="px-4 py-12 text-center text-[#8b8b8b]/50 text-sm"
+                          >
+                            Nenhum hábito cadastrado
+                          </td>
+                        </tr>
+                      ) : (
+                        habits.map((habit) => (
+                          <SortableHabitRow
+                            key={habit}
+                            habit={habit}
+                            calendar={calendar}
+                            currentMonthTracking={currentMonthTracking}
+                            prevMonthTracking={prevMonthTracking}
+                            nextMonthTracking={nextMonthTracking}
+                            pulsingDays={pulsingDays}
+                            particles={particles}
+                            onToggleDay={handleToggleDay}
+                            onRemove={handleRemoveHabit}
+                            isChecked={isChecked}
+                          />
+                        ))
+                      )}
+
+                      {/* Linha Total % */}
+                      {habits.length > 0 && (
+                        <tr className="bg-[#252525] border-t-2 border-[#8b8b8b]/40">
+                          <td className="sticky left-0 z-10 bg-[#252525] px-3 py-2 text-[11px] font-bold text-[#8b8b8b] border-r border-[#8b8b8b]/30 habit-name-cell">
+                            Total %
+                          </td>
+                          {calendar.weeks.map((week, weekIdx) =>
+                            week.map((cellData, dayIdx) => {
+                              const completion = getDayCompletion(cellData);
+                              const colorClass =
+                                completion >= 80
+                                  ? 'bg-green-500'
+                                  : completion >= 50
+                                    ? 'bg-yellow-500'
+                                    : 'bg-red-500';
+                              const fireKey = `fire-${cellData.day}`;
+                              const showFire =
+                                fireEmoji[fireKey] && cellData.belongsTo === 'current';
+
+                              return (
+                                <td
+                                  key={`${weekIdx}-${dayIdx}`}
+                                  className={`px-1 py-2 text-center relative ${dayIdx === 0 ? 'border-l border-[#8b8b8b]/30' : ''}`}
+                                >
+                                  {showFire && <div className="fire-emoji">🔥</div>}
+                                  <div
+                                    className={`w-6 h-6 mx-auto flex items-center justify-center text-[9px] font-bold text-white ${colorClass} rounded-md shadow-lg relative overflow-hidden`}
+                                  >
+                                    {completion >= 80 && (
+                                      <div className="absolute inset-0 border-2 border-[#8b8b8b]/40 rounded-md rotating-ring"></div>
+                                    )}
+                                    <span className="relative z-10">{completion}%</span>
+                                  </div>
+                                </td>
+                              );
+                            })
+                          )}
+                          <td className="sticky right-0 z-10 bg-[#252525] border-l border-[#8b8b8b]/30"></td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </SortableContext>
+                </DndContext>
+              </table>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Modal de Adicionar */}
         <AnimatePresence>
           {showAddModal && (
             <motion.div
@@ -910,22 +988,10 @@ export default function HabitsTable({ onActivityAdded }) {
                     <div
                       className="max-h-80 overflow-y-auto mb-6 space-y-2 scroll-container pr-3 pt-2 pb-4"
                       style={{ scrollBehavior: 'smooth' }}
-                      onWheel={(e) => {
-                        const el = e.currentTarget;
-                        const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
-                        const atTop = el.scrollTop <= 0;
-
-                        if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
-                          return;
-                        }
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
                     >
                       {availableActivities.length === 0 ? (
                         <p className="text-sm text-[#8b8b8b]/60 text-center py-8">
-                          Nenhuma atividade pré-definida cadastrada. Use o botão "Gerenciar" no
-                          formulário de atividades para adicionar.
+                          Nenhuma atividade pré-definida cadastrada.
                         </p>
                       ) : (
                         availableActivities.map((activity) => (
@@ -1024,19 +1090,16 @@ function generateCalendar(year, month) {
     const week = [];
     for (let d = 0; d < 7; d++) {
       if (dayCounter < 1) {
-        // Dias do mês anterior
         week.push({
           day: daysInPrevMonth + dayCounter,
           belongsTo: 'prev',
         });
       } else if (dayCounter <= daysInMonth) {
-        // Dias do mês atual
         week.push({
           day: dayCounter,
           belongsTo: 'current',
         });
       } else {
-        // Dias do próximo mês
         week.push({
           day: dayCounter - daysInMonth,
           belongsTo: 'next',
@@ -1045,24 +1108,6 @@ function generateCalendar(year, month) {
       dayCounter++;
     }
     weeks.push(week);
-  }
-
-  if (DEBUG) {
-    debugLog('generateCalendar - RESULTADO', {
-      year,
-      month,
-      monthName: getMonthName(month),
-      daysInMonth,
-      firstDayWeekday: startDayOfWeek,
-      lastDayWeekday: endDayOfWeek,
-      totalWeeks: weeks.length,
-      firstWeek: weeks[0],
-      lastWeek: weeks[weeks.length - 1],
-      allDays: weeks
-        .flat()
-        .map((d) => `${d.day}(${d.belongsTo})`)
-        .join(', '),
-    });
   }
 
   return { weeks };
