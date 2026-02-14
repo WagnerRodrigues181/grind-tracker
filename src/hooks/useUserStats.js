@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
-
 import { timeToMinutes } from '../utils/formatters/timeFormatters';
 
 /**
@@ -26,8 +25,6 @@ export function useUserStats(userId) {
         const activitiesRef = collection(db, 'activities', userId, 'entries');
         const q = query(activitiesRef, orderBy('date', 'desc'));
         const snapshot = await getDocs(q);
-
-        console.log('📊 useUserStats: Docs encontrados:', snapshot.size);
 
         if (snapshot.empty) {
           setStats({
@@ -138,7 +135,7 @@ export function useUserStats(userId) {
           avgPerActivity,
         });
       } catch (err) {
-        console.error('❌ useUserStats: Erro ao calcular:', err);
+        console.error('Erro ao calcular stats:', err);
         setError(err.message);
       } finally {
         setLoading(false);

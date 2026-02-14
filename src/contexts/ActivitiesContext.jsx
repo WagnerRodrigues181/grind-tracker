@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'f
 import { db } from '../services/firebase';
 import { useAuth } from './AuthContext';
 import { onCustomActivitiesSnapshot } from '../services/activitiesService';
-import { getToday } from '../utils/dateHelpers';
+import { getToday } from '../utils/formatters/dateFormatters';
 
 const ActivitiesContext = createContext(null);
 
@@ -18,9 +18,6 @@ export function useActivities() {
 export function ActivitiesProvider({ children }) {
   const { currentUser } = useAuth();
 
-  // ============================================
-  // ESTADOS CENTRALIZADOS
-  // ============================================
   const [customActivities, setCustomActivities] = useState([]);
   const [loadingCustomActivities, setLoadingCustomActivities] = useState(true);
 
@@ -30,9 +27,7 @@ export function ActivitiesProvider({ children }) {
   const [currentDate, setCurrentDate] = useState(getToday());
   const [totalMinutes, setTotalMinutes] = useState(0);
 
-  // ============================================
-  // LISTENER 1: TEMPLATES DE ATIVIDADES CUSTOMIZADAS
-  // ============================================
+  // Listener: Custom Activities
   useEffect(() => {
     if (!currentUser?.uid) {
       setCustomActivities([]);
@@ -40,24 +35,17 @@ export function ActivitiesProvider({ children }) {
       return;
     }
 
-    console.log('🔥 ActivitiesContext: Iniciando listener de customActivities');
     setLoadingCustomActivities(true);
 
     const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
-      console.log('✅ ActivitiesContext: customActivities atualizadas:', activities.length);
       setCustomActivities(activities);
       setLoadingCustomActivities(false);
     });
 
-    return () => {
-      console.log('🧹 ActivitiesContext: Limpando listener de customActivities');
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [currentUser?.uid]);
 
-  // ============================================
-  // LISTENER 2: ATIVIDADES DO DIA ATUAL
-  // ============================================
+  // Listener: Daily Activities
   useEffect(() => {
     if (!currentUser?.uid) {
       setDailyActivities([]);
@@ -66,7 +54,6 @@ export function ActivitiesProvider({ children }) {
       return;
     }
 
-    console.log('🔥 ActivitiesContext: Iniciando listener de dailyActivities para', currentDate);
     setLoadingDailyActivities(true);
 
     const q = query(
@@ -83,27 +70,18 @@ export function ActivitiesProvider({ children }) {
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
 
-          // Só adiciona se a data bater (segurança extra)
           if (data.date === currentDate) {
             activitiesData.push({ id: docSnap.id, ...data });
 
-            // Soma apenas atividades "timed" com minutes válidos
             if (data.type !== 'binary' && typeof data.minutes === 'number') {
               total += data.minutes;
             }
           }
         });
 
-        // Ordena por data de criação (mais recente primeiro)
         activitiesData.sort((a, b) => {
           if (!a.createdAt || !b.createdAt) return 0;
           return b.createdAt.seconds - a.createdAt.seconds;
-        });
-
-        console.log('✅ ActivitiesContext: dailyActivities atualizadas:', {
-          count: activitiesData.length,
-          totalMinutes: total,
-          date: currentDate,
         });
 
         setDailyActivities(activitiesData);
@@ -111,53 +89,29 @@ export function ActivitiesProvider({ children }) {
         setLoadingDailyActivities(false);
       },
       (error) => {
-        console.error('❌ ActivitiesContext: Erro no listener de dailyActivities:', error);
+        console.error('Erro no listener de dailyActivities:', error);
         setDailyActivities([]);
         setTotalMinutes(0);
         setLoadingDailyActivities(false);
       }
     );
 
-    return () => {
-      console.log('🧹 ActivitiesContext: Limpando listener de dailyActivities');
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [currentUser?.uid, currentDate]);
 
-  // ============================================
-  // FUNÇÕES UTILITÁRIAS
-  // ============================================
-
-  /**
-   * Muda a data atual (navegar entre dias)
-   */
-  const changeDate = useCallback(
-    (newDate) => {
-      console.log('📅 ActivitiesContext: Mudando data de', currentDate, 'para', newDate);
-      setCurrentDate(newDate);
-    },
-    [currentDate]
-  );
-
-  /**
-   * Força reload das atividades do dia (fallback)
-   */
-  const refreshDailyActivities = useCallback(() => {
-    console.log('🔄 ActivitiesContext: Refresh manual solicitado (listeners já cuidam disso)');
-    // Na prática, os listeners onSnapshot já fazem isso automaticamente
-    // Essa função existe apenas como fallback para compatibilidade
+  const changeDate = useCallback((newDate) => {
+    setCurrentDate(newDate);
   }, []);
 
-  /**
-   * Adiciona uma nova atividade (helper rápido)
-   */
+  const refreshDailyActivities = useCallback(() => {
+    // Listeners já cuidam disso automaticamente
+  }, []);
+
   const addActivity = useCallback(
     async (activityData) => {
       if (!currentUser?.uid) {
         throw new Error('Usuário não autenticado');
       }
-
-      console.log('➕ ActivitiesContext: Adicionando atividade:', activityData);
 
       return await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
         userId: currentUser.uid,
@@ -170,28 +124,16 @@ export function ActivitiesProvider({ children }) {
     [currentUser, currentDate]
   );
 
-  // ============================================
-  // VALOR DO CONTEXT
-  // ============================================
   const value = {
-    // Templates de atividades customizadas
     customActivities,
     loadingCustomActivities,
-
-    // Atividades do dia atual
     dailyActivities,
     loadingDailyActivities,
     totalMinutes,
-
-    // Data atual
     currentDate,
     changeDate,
-
-    // Funções utilitárias
     refreshDailyActivities,
     addActivity,
-
-    // Info do usuário (atalho)
     userId: currentUser?.uid,
   };
 

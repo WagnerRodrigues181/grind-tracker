@@ -13,7 +13,7 @@ import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useActivities } from '../contexts/ActivitiesContext';
 import { toggleHabitDay, getHabitDuration } from '../services/habitsService';
-import { timeToMinutes } from '../utils/dateHelpers';
+import { timeToMinutes } from '../utils/formatters/timeFormatters';
 
 /**
  * Hook para gerenciar tracking de hábitos
@@ -23,14 +23,10 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
   const { currentUser } = useAuth();
   const { customActivities } = useActivities();
 
-  // Estados para efeitos visuais
   const [pulsingDays, setPulsingDays] = useState({});
   const [fireEmoji, setFireEmoji] = useState({});
   const [particles, setParticles] = useState([]);
 
-  /**
-   * Toggle um hábito em um dia específico
-   */
   const handleToggleDay = useCallback(
     async (habitName, cellData) => {
       if (!habitName || !currentUser?.uid) return;
@@ -38,7 +34,6 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
       try {
         let targetYear, targetMonth, targetDay;
 
-        // Determina o ano/mês/dia correto baseado em belongsTo
         if (cellData.belongsTo === 'current') {
           targetYear = year;
           targetMonth = month;
@@ -71,9 +66,9 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
           });
         }, 600);
 
-        // Se está marcando (não desmarcando)
+        // Se está marcando
         if (!currentValue) {
-          // Efeito de partículas
+          // Partículas
           const newParticles = Array.from({ length: 4 }, (_, i) => ({
             id: `${pulseKey}-${i}-${Date.now()}`,
             angle: i * 90 + 45,
@@ -85,7 +80,7 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
             setParticles((prev) => prev.filter((p) => !newParticles.some((np) => np.id === p.id)));
           }, 800);
 
-          // Verifica se completou todos os hábitos do dia (🔥)
+          // Fire emoji se completou tudo
           const totalHabits = habits.length;
           const completedAfterToggle = habits.filter((h) => {
             if (h === habitName) return true;
@@ -108,32 +103,27 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
         // Atualiza Firestore
         await toggleHabitDay(currentUser.uid, targetYear, targetMonth, targetDay, habitName);
 
-        // Registra/remove como atividade
+        // Registra/remove atividade
         if (!currentValue) {
           await registerHabitAsActivity(habitName, targetYear, targetMonth, targetDay);
         } else {
           await removeHabitActivity(habitName, targetYear, targetMonth, targetDay);
         }
 
-        // Callback para atualizar UI pai
         if (onTrackingUpdate) onTrackingUpdate();
       } catch (error) {
-        console.error('❌ Erro em handleToggleDay:', error);
+        console.error('Erro em handleToggleDay:', error);
       }
     },
     [currentUser, habits, currentMonthTracking, year, month, customActivities, onTrackingUpdate]
   );
 
-  /**
-   * Registra hábito como atividade no Firestore
-   */
   async function registerHabitAsActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
     try {
       const matchingActivity = customActivities.find((a) => a.name === habitName);
 
-      // Se for binary
       if (matchingActivity?.type === 'binary') {
         await addDoc(collection(db, 'activities', currentUser.uid, 'entries'), {
           activity: habitName,
@@ -147,7 +137,6 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
         return;
       }
 
-      // Se for timed
       const duration = await getHabitDuration(currentUser.uid, habitName);
       if (!duration) return;
 
@@ -171,9 +160,6 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
     }
   }
 
-  /**
-   * Remove atividade do hábito quando desmarcado
-   */
   async function removeHabitActivity(habitName, year, month, day) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -191,7 +177,7 @@ export function useHabitsTracking(habits, currentMonthTracking, year, month, onT
 
       await Promise.all(deletePromises);
     } catch (error) {
-      console.error('❌ Erro ao remover atividade:', error);
+      console.error('Erro ao remover atividade:', error);
       throw error;
     }
   }

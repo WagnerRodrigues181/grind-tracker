@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Check, X, Camera } from 'lucide-react';
+import { Edit2, Check, X, Camera, Lock } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { updateProfile } from 'firebase/auth';
 
@@ -12,6 +12,9 @@ import { formatFirebaseTimestamp } from '../../utils/formatters/dateFormatters';
 import ProfileHeader from './ProfileHeader';
 import ProfileStats from './ProfileStats';
 import TopActivities from './TopActivities';
+
+// ✅ CONSTANTE DO PERFIL DEMO
+const DEMO_UID = 'NzDVaejxMgQPO13ud1db1v2opqE2';
 
 export default function ProfileCard({ onClose }) {
   const [profile, setProfile] = useState(null);
@@ -25,6 +28,9 @@ export default function ProfileCard({ onClose }) {
   const [editPhoto, setEditPhoto] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // ✅ DETECTA SE É PERFIL DEMO
+  const isDemoProfile = auth.currentUser?.uid === DEMO_UID;
 
   // Hook de stats
   const { stats, loading: statsLoading, error: statsError } = useUserStats(auth.currentUser?.uid);
@@ -75,6 +81,12 @@ export default function ProfileCard({ onClose }) {
   };
 
   const handleSave = async () => {
+    // ✅ BLOQUEIA SALVAMENTO SE FOR DEMO
+    if (isDemoProfile) {
+      setError('🔒 Perfil demo não pode ser editado');
+      return;
+    }
+
     setError('');
     if (!editName.trim()) {
       setError('Nome não pode ser vazio.');
@@ -114,6 +126,14 @@ export default function ProfileCard({ onClose }) {
     setTimeout(() => {
       onClose();
     }, 250);
+  };
+
+  // ✅ BLOQUEIA MODO EDIÇÃO SE FOR DEMO
+  const handleEditClick = () => {
+    if (isDemoProfile) {
+      return; // Não faz nada
+    }
+    setIsEditing(true);
   };
 
   if (errorMessage) {
@@ -239,6 +259,16 @@ export default function ProfileCard({ onClose }) {
 
             <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#8b8b8b]/10 to-transparent"></div>
 
+            {/* ✅ BADGE DEMO (só aparece se for perfil demo) */}
+            {isDemoProfile && (
+              <div className="absolute top-4 right-4 z-20 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-full backdrop-blur-sm">
+                <div className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-bold text-amber-400">PERFIL DEMO</span>
+                </div>
+              </div>
+            )}
+
             <div className="relative z-10 p-8 space-y-6">
               {isEditing ? (
                 /* MODO EDIÇÃO */
@@ -331,8 +361,9 @@ export default function ProfileCard({ onClose }) {
                 <>
                   <ProfileHeader
                     profile={profile}
-                    onEdit={() => setIsEditing(true)}
+                    onEdit={handleEditClick}
                     formatDateDisplay={formatFirebaseTimestamp}
+                    isDemoProfile={isDemoProfile}
                   />
 
                   <ProfileStats stats={stats} animateStats={animateStats} getLevel={getLevelInfo} />
@@ -341,12 +372,30 @@ export default function ProfileCard({ onClose }) {
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-2">
+                    {/* ✅ BOTÃO EDITAR COM BLOQUEIO VISUAL */}
                     <button
-                      onClick={() => setIsEditing(true)}
-                      className="flex-1 px-5 py-3 bg-gradient-to-r from-[#8b8b8b] to-[#6b6b6b] text-[#1a1a1a] rounded-xl font-bold text-sm hover:scale-105 transition-all shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50 flex items-center justify-center gap-2"
+                      onClick={handleEditClick}
+                      disabled={isDemoProfile}
+                      className={`flex-1 px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                        isDemoProfile
+                          ? 'bg-[#252525] text-[#8b8b8b]/50 cursor-not-allowed border border-[#8b8b8b]/20'
+                          : 'bg-gradient-to-r from-[#8b8b8b] to-[#6b6b6b] text-[#1a1a1a] hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50'
+                      }`}
+                      title={
+                        isDemoProfile ? '🔒 Perfil demo não pode ser editado' : 'Editar perfil'
+                      }
                     >
-                      <Edit2 className="w-4 h-4" />
-                      Editar Perfil
+                      {isDemoProfile ? (
+                        <>
+                          <Lock className="w-4 h-4" />
+                          Bloqueado
+                        </>
+                      ) : (
+                        <>
+                          <Edit2 className="w-4 h-4" />
+                          Editar Perfil
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={handleClose}

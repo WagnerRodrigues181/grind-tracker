@@ -6,6 +6,8 @@ import { getUserHabitsOrdered, updateHabitsOrder } from '../../services/habitsSe
 import { useAuth } from '../../contexts/AuthContext';
 import { useActivities } from '../../contexts/ActivitiesContext';
 import { useHabitsTracking } from '../../hooks/useHabitsTracking';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 // Componentes filhos
 import HabitRow from './HabitRow';
@@ -69,39 +71,86 @@ export default function HabitsTable() {
     })
   );
 
-  // Carrega dados do Firestore
   useEffect(() => {
-    async function loadData() {
-      if (!currentUser) {
+    async function loadHabits() {
+      if (!currentUser?.uid) {
         setLoading(false);
         return;
       }
 
-      setLoading(true);
+      try {
+        const habitsData = await getUserHabitsOrdered(currentUser.uid);
+        setHabits(habitsData);
+      } catch (error) {
+        console.error('Erro ao carregar hábitos:', error);
+      }
+    }
+
+    loadHabits();
+  }, [currentUser?.uid]);
+
+  // 2️⃣ LISTENER EM TEMPO REAL - MÊS ATUAL (CORRIGIDO)
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setCurrentMonthTracking({});
+      setLoading(false);
+      return;
+    }
+
+    const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+    const docRef = doc(db, 'habits', currentUser.uid, 'tracking', yearMonth);
+
+    console.log('🔥 Iniciando listener para:', yearMonth);
+
+    const unsubscribe = onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          console.log('✅ Tracking atualizado:', data);
+          // ✅ CORREÇÃO: Os dados já estão na raiz, não dentro de "data"
+          setCurrentMonthTracking(data || {});
+        } else {
+          console.log('📭 Nenhum tracking para este mês ainda');
+          setCurrentMonthTracking({});
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error('❌ Erro no listener de tracking:', error);
+        setCurrentMonthTracking({});
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      console.log('🧹 Limpando listener de tracking');
+      unsubscribe();
+    };
+  }, [currentUser?.uid, year, month]);
+
+  // 3️⃣ Carrega meses adjacentes (sem listener)
+  useEffect(() => {
+    async function loadAdjacentMonths() {
+      if (!currentUser?.uid) return;
+
+      const { prevYear, prevMonth, nextYear, nextMonth } = getAdjacentMonths(year, month);
 
       try {
-        const { prevYear, prevMonth, nextYear, nextMonth } = getAdjacentMonths(year, month);
-
-        const [habitsData, currentTracking, prevTracking, nextTracking] = await Promise.all([
-          getUserHabitsOrdered(currentUser.uid),
-          getMonthTracking(currentUser.uid, year, month),
+        const [prevTracking, nextTracking] = await Promise.all([
           getMonthTracking(currentUser.uid, prevYear, prevMonth),
           getMonthTracking(currentUser.uid, nextYear, nextMonth),
         ]);
 
-        setHabits(habitsData);
-        setCurrentMonthTracking(currentTracking);
         setPrevMonthTracking(prevTracking);
         setNextMonthTracking(nextTracking);
       } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-      } finally {
-        setLoading(false);
+        console.error('Erro ao carregar meses adjacentes:', error);
       }
     }
 
-    loadData();
-  }, [currentUser, year, month]);
+    loadAdjacentMonths();
+  }, [currentUser?.uid, year, month]);
 
   // Handlers de Drag
   function handleDragStart(event) {

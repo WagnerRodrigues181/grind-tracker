@@ -1,11 +1,11 @@
 import { memo } from 'react';
-import { Calendar, Edit2 } from 'lucide-react';
+import { Calendar, Edit2, Lock } from 'lucide-react';
 
 /**
  * Header do perfil (avatar + nome + data de criação)
  * ✅ Memoizado
  */
-function ProfileHeader({ profile, onEdit, formatDateDisplay }) {
+function ProfileHeader({ profile, onEdit, formatDateDisplay, isDemoProfile }) {
   return (
     <div className="flex flex-col items-center">
       <div className="relative animate-float">
@@ -29,12 +29,18 @@ function ProfileHeader({ profile, onEdit, formatDateDisplay }) {
             </div>
           )}
 
+          {/* ✅ BOTÃO EDITAR COM BLOQUEIO */}
           <button
             onClick={onEdit}
-            className="absolute -bottom-1 -right-1 p-2.5 bg-gradient-to-br from-[#8b8b8b] to-[#6b6b6b] rounded-full text-[#1a1a1a] hover:scale-110 transition-all shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50"
-            title="Editar perfil"
+            disabled={isDemoProfile}
+            className={`absolute -bottom-1 -right-1 p-2.5 rounded-full shadow-lg transition-all ${
+              isDemoProfile
+                ? 'bg-[#252525] text-[#8b8b8b]/50 cursor-not-allowed'
+                : 'bg-gradient-to-br from-[#8b8b8b] to-[#6b6b6b] text-[#1a1a1a] hover:scale-110 hover:shadow-xl hover:shadow-[#8b8b8b]/50'
+            }`}
+            title={isDemoProfile ? '🔒 Perfil demo bloqueado' : 'Editar perfil'}
           >
-            <Edit2 className="w-4 h-4" />
+            {isDemoProfile ? <Lock className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
           </button>
         </div>
       </div>

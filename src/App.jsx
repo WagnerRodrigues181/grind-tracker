@@ -3,8 +3,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TimerProvider } from './contexts/TimerContext';
 import { ActivitiesProvider } from './contexts/ActivitiesContext';
 import AudioPlayer from './components/audio/AudioPlayer';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// ✅ LAZY LOADING dos componentes pesados
 const Login = lazy(() => import('./components/auth/Login'));
 const Dashboard = lazy(() => import('./components/dashboard/Dashboard'));
 
@@ -28,20 +28,21 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <TimerProvider>
-        <ActivitiesProvider>
-          <div className="min-h-screen bg-primary-first">
-            <AppContent />
-            <AudioPlayer />
-          </div>
-        </ActivitiesProvider>
-      </TimerProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <TimerProvider>
+          <ActivitiesProvider>
+            <div className="min-h-screen bg-primary-first">
+              <AppContent />
+              <AudioPlayer />
+            </div>
+          </ActivitiesProvider>
+        </TimerProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
-// Loading simples
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
