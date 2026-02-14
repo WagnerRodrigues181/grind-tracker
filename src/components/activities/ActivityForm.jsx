@@ -4,24 +4,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useActivities } from '../../contexts/ActivitiesContext'; // ← NOVO
 import {
   addCustomActivityTemplate,
   deleteCustomActivityTemplate,
   updateCustomActivityTemplate,
 } from '../../services/activitiesService';
 
-const getToday = () => new Date().toISOString().split('T')[0];
 const timeToMinutes = (time) => {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
 };
 
-export default function ActivityForm({
-  onActivityAdded,
-  customActivities = [],
-  loadingActivities = false,
-}) {
+export default function ActivityForm() {
   const { currentUser } = useAuth();
+
+  // ============================================
+  // ✅ PEGA DADOS DO CONTEXT AO INVÉS DE PROPS
+  // ============================================
+  const { customActivities, loadingCustomActivities, currentDate } = useActivities();
+
   const [selectedActivity, setSelectedActivity] = useState('');
   const [customActivity, setCustomActivity] = useState('');
   const [time, setTime] = useState('');
@@ -93,7 +95,7 @@ export default function ActivityForm({
         activity: activityName.trim(),
         type: 'binary',
         completed: true,
-        date: getToday(),
+        date: currentDate, // ← USA DATA DO CONTEXT
         createdAt: serverTimestamp(),
       });
       setSuccess('Marcado como feito!');
@@ -118,7 +120,7 @@ export default function ActivityForm({
         type: 'timed',
         minutes,
         targetMinutes,
-        date: getToday(),
+        date: currentDate, // ← USA DATA DO CONTEXT
         createdAt: serverTimestamp(),
       });
 
@@ -137,7 +139,6 @@ export default function ActivityForm({
     setTime('');
     setTargetTime('');
     setActivityType('timed');
-    if (onActivityAdded) onActivityAdded();
     setTimeout(() => setSuccess(''), 3000);
   }
 
@@ -183,9 +184,6 @@ export default function ActivityForm({
     }
   }
 
-  // ============================================
-  // FUNÇÕES DE EDIÇÃO
-  // ============================================
   function openEditModal(activity) {
     setEditingActivity(activity);
     setEditName(activity.name);
@@ -281,7 +279,7 @@ export default function ActivityForm({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[#8b8b8b] mb-1">Atividade</label>
-            {loadingActivities ? (
+            {loadingCustomActivities ? (
               <div className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b]/50 rounded-xl border border-[#8b8b8b]/30 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
               </div>
@@ -370,7 +368,7 @@ export default function ActivityForm({
 
           <button
             onClick={handleSubmit}
-            disabled={loading || loadingActivities}
+            disabled={loading || loadingCustomActivities}
             className="w-full p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl font-semibold shadow-lg btn-hover-scale flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -419,7 +417,7 @@ export default function ActivityForm({
                     className="custom-scrollbar overflow-y-auto pr-2 space-y-3 mb-6 flex-shrink-0"
                     style={{ maxHeight: '300px' }}
                   >
-                    {loadingActivities ? (
+                    {loadingCustomActivities ? (
                       <div className="text-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#8b8b8b]" />
                       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Header from '../header/Header';
 import ActivityForm from '../activities/ActivityForm';
 import ActivityList from '../activities/ActivityList';
@@ -6,49 +6,9 @@ import WeeklyAreaChart from '../charts/WeeklyAreaChart';
 import HabitsTable from '../habits/HabitsTable';
 import Footer from '../Footer';
 import ProfileCard from '../profile/ProfileCard';
-import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
-import { useAuth } from '../../contexts/AuthContext';
 
 export default function Dashboard() {
-  const { currentUser } = useAuth();
   const [showProfile, setShowProfile] = useState(false);
-
-  // ESTADO CENTRALIZADO
-  const [customActivities, setCustomActivities] = useState([]);
-  const [loadingActivities, setLoadingActivities] = useState(true);
-
-  // LISTENER ÚNICO
-  useEffect(() => {
-    if (!currentUser?.uid) {
-      setCustomActivities([]);
-      setLoadingActivities(false);
-      return;
-    }
-
-    setLoadingActivities(true);
-
-    const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
-      console.log('✅ Dashboard: Atividades carregadas:', activities);
-      setCustomActivities(activities);
-      setLoadingActivities(false);
-    });
-
-    return () => {
-      console.log('Dashboard: Limpando listener de atividades personalizadas');
-      unsubscribe();
-    };
-  }, [currentUser]);
-
-  function handleActivityAddedFromForm() {
-    console.log(
-      '✅ Dashboard: Atividade adicionada via ActivityForm (listener atualiza automaticamente)'
-    );
-  }
-
-  // Refresh genérico (os listeners já atualizam tudo sozinho)
-  function handleRefresh() {
-    console.log('Refresh chamado — Firestore já cuida da atualização automática');
-  }
 
   return (
     <>
@@ -57,25 +17,24 @@ export default function Dashboard() {
 
         <main className="w-full px-8 py-8">
           <div className="max-w-[1800px] mx-auto space-y-8">
+            {/* Gráfico Semanal */}
             <div className="w-full">
               <WeeklyAreaChart />
             </div>
 
+            {/* Lista de Atividades */}
             <div className="w-full">
-              <ActivityList onRefresh={handleRefresh} />
+              <ActivityList />
             </div>
 
+            {/* Form + Tabela de Hábitos */}
             <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
               <div>
-                <ActivityForm
-                  onActivityAdded={handleActivityAddedFromForm}
-                  customActivities={customActivities}
-                  loadingActivities={loadingActivities}
-                />
+                <ActivityForm />
               </div>
 
               <div>
-                <HabitsTable onActivityAdded={handleRefresh} />
+                <HabitsTable />
               </div>
             </div>
           </div>

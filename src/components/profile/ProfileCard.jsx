@@ -1,29 +1,24 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Calendar,
-  Clock,
-  Target,
-  Edit2,
-  Trophy,
-  Flame,
-  TrendingUp,
-  Award,
-  Camera,
-  Check,
-  X,
-} from 'lucide-react';
-import { auth, db } from '../../services/firebase';
-import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { Edit2, Check, X, Camera, Lock } from 'lucide-react';
+import { auth } from '../../services/firebase';
 import { updateProfile } from 'firebase/auth';
-import { timeToMinutes } from '../../utils/dateHelpers';
+
+import { useUserStats } from '../../hooks/useUserStats';
+import { getLevelInfo } from '../../utils/constants/colors';
+import { formatFirebaseTimestamp } from '../../utils/formatters/dateFormatters';
+
+// Componentes filhos
+import ProfileHeader from './ProfileHeader';
+import ProfileStats from './ProfileStats';
+import TopActivities from './TopActivities';
+
+// ✅ CONSTANTE DO PERFIL DEMO
+const DEMO_UID = 'NzDVaejxMgQPO13ud1db1v2opqE2';
 
 export default function ProfileCard({ onClose }) {
   const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [animateStats, setAnimateStats] = useState(false);
-  const [isAvgExpanded, setIsAvgExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -34,21 +29,30 @@ export default function ProfileCard({ onClose }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // ✅ DETECTA SE É PERFIL DEMO
+  const isDemoProfile = auth.currentUser?.uid === DEMO_UID;
+
+  // Hook de stats
+  const { stats, loading: statsLoading, error: statsError } = useUserStats(auth.currentUser?.uid);
+
   useEffect(() => {
     setIsVisible(true);
     loadUserData();
   }, []);
 
+  useEffect(() => {
+    if (stats && !statsLoading) {
+      setTimeout(() => setAnimateStats(true), 100);
+    }
+  }, [stats, statsLoading]);
+
   async function loadUserData() {
     try {
       const user = auth.currentUser;
       if (!user) {
-        setErrorMessage('Nenhum usuário logado. Loga de novo, guerreiro.');
-        setLoading(false);
+        setErrorMessage('Nenhum usuário logado.');
         return;
       }
-
-      console.log('🔍 UID atual:', user.uid);
 
       const profileData = {
         displayName: user.displayName || 'Usuário',
@@ -61,163 +65,9 @@ export default function ProfileCard({ onClose }) {
       setProfile(profileData);
       setEditName(profileData.displayName);
       setEditPhoto(profileData.photoURL || '');
-
-      const statsData = await calculateUserStats(user.uid);
-      setStats(statsData);
-      setLoading(false);
-      setTimeout(() => setAnimateStats(true), 100);
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
-      setErrorMessage('Erro ao puxar dados. Checa o console e o Firestore.');
-      setLoading(false);
-    }
-  }
-
-  async function calculateUserStats(userId) {
-    try {
-      const activitiesRef = collection(db, 'activities', userId, 'entries');
-      const q = query(activitiesRef, orderBy('date', 'desc'));
-      const snapshot = await getDocs(q);
-
-      console.log('📊 Docs encontrados para UID', userId, ':', snapshot.size);
-
-      if (snapshot.size > 0) {
-        console.log('📝 Primeiros 3 documentos:');
-        snapshot.docs.slice(0, 3).forEach((doc) => {
-          console.log('  Doc ID:', doc.id);
-          console.log('  Data:', doc.data());
-        });
-      } else {
-        console.warn('⚠️ Nenhuma atividade encontrada. Verifica se salvou certo.');
-      }
-
-      if (snapshot.empty) {
-        return {
-          totalHours: 0,
-          totalMinutes: 0,
-          topActivities: [],
-          weekStreak: 0,
-          totalDays: 0,
-          avgHoursPerDay: 0,
-          bestDay: null,
-          avgPerActivity: [],
-        };
-      }
-
-      const activityMap = {};
-      const dayMap = {};
-      let totalMinutes = 0;
-
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        const date = data.date;
-        const activity = data.activity;
-        const type = data.type || 'timed';
-
-        // só soma se for timed E tiver minutos válidos
-        let duration = 0;
-        if (type === 'binary') {
-          // Binary não conta em horas, só conclusão
-          duration = 0;
-        } else if (type === 'timed') {
-          // Timed: usa minutes se existir, senão tenta converter duration
-          if (data.minutes != null && typeof data.minutes === 'number') {
-            duration = data.minutes;
-          } else if (data.duration) {
-            duration = timeToMinutes(data.duration) || 0;
-          }
-        }
-
-        console.log(`  ${activity} [${type}]: ${duration} min`);
-
-        totalMinutes += duration;
-
-        if (!activityMap[activity]) activityMap[activity] = 0;
-        activityMap[activity] += duration;
-
-        if (!dayMap[date]) dayMap[date] = 0;
-        dayMap[date] += duration;
-      });
-
-      console.log(
-        '✅ Total calculado:',
-        totalMinutes,
-        'minutos =',
-        Math.floor(totalMinutes / 60),
-        'horas'
-      );
-      console.log('📦 activityMap:', activityMap);
-
-      const topActivities = Object.entries(activityMap)
-        .filter(([name, mins]) => mins > 0) // filtra atividades zeradas
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([name, mins]) => ({
-          name,
-          hours: Math.floor(mins / 60),
-          mins: mins % 60,
-        }));
-
-      let weekStreak = 0;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
-
-      if (dayMap[todayStr] > 0) {
-        weekStreak = 1;
-        let checkDate = new Date(today);
-        for (let i = 1; i <= 365; i++) {
-          checkDate.setDate(checkDate.getDate() - 1);
-          const dateStr = checkDate.toISOString().split('T')[0];
-          if (dayMap[dateStr] > 0) {
-            weekStreak++;
-          } else {
-            break;
-          }
-        }
-      }
-
-      const bestDayEntry = Object.entries(dayMap)
-        .filter(([date, mins]) => mins > 0)
-        .sort((a, b) => b[1] - a[1])[0];
-      const bestDay = bestDayEntry
-        ? { date: bestDayEntry[0], hours: Math.floor(bestDayEntry[1] / 60) }
-        : null;
-
-      const totalDays = Object.keys(dayMap).filter((date) => dayMap[date] > 0).length;
-      const avgHoursPerDay = totalDays > 0 ? (totalMinutes / 60 / totalDays).toFixed(1) : 0;
-
-      const avgPerActivity = Object.entries(activityMap)
-        .filter(([name, mins]) => mins > 0)
-        .map(([name, mins]) => {
-          const totalHours = mins / 60;
-          const avgHours = totalDays > 0 ? (totalHours / totalDays).toFixed(2) : '0.00';
-          return { name, avgHours: parseFloat(avgHours) };
-        });
-      avgPerActivity.sort((a, b) => b.avgHours - a.avgHours);
-
-      return {
-        totalHours: Math.floor(totalMinutes / 60),
-        totalMinutes,
-        topActivities,
-        weekStreak,
-        totalDays,
-        avgHoursPerDay: parseFloat(avgHoursPerDay),
-        bestDay,
-        avgPerActivity,
-      };
-    } catch (error) {
-      console.error('❌ Erro ao calcular estatísticas:', error);
-      return {
-        totalHours: 0,
-        totalMinutes: 0,
-        topActivities: [],
-        weekStreak: 0,
-        totalDays: 0,
-        avgHoursPerDay: 0,
-        bestDay: null,
-        avgPerActivity: [],
-      };
+      setErrorMessage('Erro ao puxar dados.');
     }
   }
 
@@ -231,9 +81,15 @@ export default function ProfileCard({ onClose }) {
   };
 
   const handleSave = async () => {
+    // ✅ BLOQUEIA SALVAMENTO SE FOR DEMO
+    if (isDemoProfile) {
+      setError('🔒 Perfil demo não pode ser editado');
+      return;
+    }
+
     setError('');
     if (!editName.trim()) {
-      setError('Nome não pode ser vazio, guerreiro.');
+      setError('Nome não pode ser vazio.');
       return;
     }
     if (editPhoto && !isValidUrl(editPhoto)) {
@@ -272,57 +128,19 @@ export default function ProfileCard({ onClose }) {
     }, 250);
   };
 
-  const formatDateDisplay = (dateStr) => {
-    const date = new Date(dateStr);
-    const months = [
-      'Jan',
-      'Fev',
-      'Mar',
-      'Abr',
-      'Mai',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Set',
-      'Out',
-      'Nov',
-      'Dez',
-    ];
-    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
-  };
-
-  const getLevel = (hours) => {
-    if (hours >= 1000)
-      return {
-        level: 'Legendary',
-        color: 'from-yellow-500 to-amber-600',
-        icon: '👑',
-        next: null,
-      };
-    if (hours >= 500)
-      return {
-        level: 'Master',
-        color: 'from-purple-500 to-pink-600',
-        icon: '⚡',
-        next: 1000,
-      };
-    if (hours >= 250)
-      return { level: 'Expert', color: 'from-blue-500 to-cyan-600', icon: '🔥', next: 500 };
-    if (hours >= 100)
-      return {
-        level: 'Advanced',
-        color: 'from-green-500 to-emerald-600',
-        icon: '💪',
-        next: 250,
-      };
-    return { level: 'Beginner', color: 'from-gray-500 to-gray-600', icon: '🌱', next: 100 };
+  // ✅ BLOQUEIA MODO EDIÇÃO SE FOR DEMO
+  const handleEditClick = () => {
+    if (isDemoProfile) {
+      return; // Não faz nada
+    }
+    setIsEditing(true);
   };
 
   if (errorMessage) {
     return <div className="p-8 text-red-500">{errorMessage}</div>;
   }
 
-  if (loading) {
+  if (!profile || statsLoading) {
     return (
       <AnimatePresence>
         {isVisible && (
@@ -358,7 +176,7 @@ export default function ProfileCard({ onClose }) {
     );
   }
 
-  if (!profile || !stats) {
+  if (statsError) {
     return (
       <AnimatePresence>
         {isVisible && (
@@ -369,15 +187,12 @@ export default function ProfileCard({ onClose }) {
             transition={{ duration: 0.25, ease: 'easeOut' }}
             className="w-[480px] bg-gradient-to-br from-[#1a1a1a] via-[#1e1e1e] to-[#1a1a1a] rounded-3xl shadow-2xl border border-[#8b8b8b]/20 overflow-hidden p-8"
           >
-            <p className="text-[#8b8b8b] text-center">Erro ao carregar perfil</p>
+            <p className="text-[#8b8b8b] text-center">Erro ao carregar estatísticas</p>
           </motion.div>
         )}
       </AnimatePresence>
     );
   }
-
-  const levelInfo = getLevel(stats.totalHours);
-  const hoursToNext = levelInfo.next ? levelInfo.next - stats.totalHours : 0;
 
   return (
     <AnimatePresence>
@@ -444,6 +259,16 @@ export default function ProfileCard({ onClose }) {
 
             <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#8b8b8b]/10 to-transparent"></div>
 
+            {/* ✅ BADGE DEMO (só aparece se for perfil demo) */}
+            {isDemoProfile && (
+              <div className="absolute top-4 right-4 z-20 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-full backdrop-blur-sm">
+                <div className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-bold text-amber-400">PERFIL DEMO</span>
+                </div>
+              </div>
+            )}
+
             <div className="relative z-10 p-8 space-y-6">
               {isEditing ? (
                 /* MODO EDIÇÃO */
@@ -503,283 +328,74 @@ export default function ProfileCard({ onClose }) {
                     )}
 
                     <div className="flex gap-3 w-full pt-2">
-                      Edição de perfil restrita no modo demo por questões de segurança.
+                      <button
+                        onClick={handleCancel}
+                        disabled={saving}
+                        className="flex-1 p-4 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all duration-300 font-semibold border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="flex-1 p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-[#8b8b8b]/40 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {saving ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-[#1a1a1a] border-t-transparent rounded-full animate-spin" />
+                            Salvando...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Salvar
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </>
               ) : (
                 /* MODO VISUALIZAÇÃO */
                 <>
-                  {/* Avatar */}
-                  <div className="flex flex-col items-center">
-                    <div className="relative animate-float">
-                      <div className="absolute inset-0 -m-3">
-                        <div
-                          className="w-full h-full rounded-full border-2 border-dashed border-[#8b8b8b]/20 animate-spin"
-                          style={{ animationDuration: '20s' }}
-                        ></div>
-                      </div>
+                  <ProfileHeader
+                    profile={profile}
+                    onEdit={handleEditClick}
+                    formatDateDisplay={formatFirebaseTimestamp}
+                    isDemoProfile={isDemoProfile}
+                  />
 
-                      <div className="relative">
-                        {profile.photoURL ? (
-                          <img
-                            src={profile.photoURL}
-                            alt={profile.displayName}
-                            className="w-28 h-28 rounded-full object-cover border-4 border-[#8b8b8b]/30 shadow-2xl"
-                          />
-                        ) : (
-                          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#8b8b8b] to-[#6b6b6b] flex items-center justify-center text-4xl font-bold text-[#1a1a1a] shadow-2xl animate-pulse-glow trophy-shine">
-                            {profile.displayName.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                  <ProfileStats stats={stats} animateStats={animateStats} getLevel={getLevelInfo} />
 
-                        <button
-                          onClick={() => setIsEditing(true)}
-                          className="absolute -bottom-1 -right-1 p-2.5 bg-gradient-to-br from-[#8b8b8b] to-[#6b6b6b] rounded-full text-[#1a1a1a] hover:scale-110 transition-all shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50"
-                          title="Editar perfil"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <h3
-                      className="mt-5 text-2xl font-bold text-[#8b8b8b] font-cinzel tracking-wide"
-                      style={{ textShadow: '0 0 20px rgba(139,139,139,0.5)' }}
-                    >
-                      {profile.displayName}
-                    </h3>
-                    <p className="text-sm text-[#8b8b8b]/60 mt-1">{profile.email}</p>
-
-                    <div className="flex items-center gap-2 mt-3 px-4 py-2 bg-[#8b8b8b]/5 rounded-full border border-[#8b8b8b]/20">
-                      <Calendar className="w-4 h-4 text-[#8b8b8b]/70" />
-                      <span className="text-xs text-[#8b8b8b]/70">
-                        Membro desde {formatDateDisplay(profile.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* HERO CARD COM RANK INTEGRADO */}
-                  <div className="relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#8b8b8b]/20 to-transparent rounded-2xl blur-xl group-hover:blur-2xl transition-all"></div>
-                    <div className="relative bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-2xl p-6 border-2 border-[#8b8b8b]/30 trophy-shine overflow-hidden">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Trophy className="w-6 h-6 text-yellow-500" />
-                          <span className="text-sm font-semibold text-[#8b8b8b]/70">
-                            Total Grindado
-                          </span>
-                        </div>
-                        <Flame className="w-6 h-6 text-orange-500 animate-pulse" />
-                      </div>
-
-                      <div className="flex items-end justify-between mb-4">
-                        <div
-                          className={`flex items-baseline gap-3 ${animateStats ? 'animate-count-up' : 'opacity-0'}`}
-                        >
-                          <span
-                            className="text-6xl font-black text-[#8b8b8b] tracking-tighter"
-                            style={{ textShadow: '0 0 30px rgba(139,139,139,0.6)' }}
-                          >
-                            {stats.totalHours.toLocaleString()}
-                          </span>
-                          <span className="text-3xl font-bold text-[#8b8b8b]/50">horas</span>
-                        </div>
-
-                        <div
-                          className={`bg-gradient-to-br ${levelInfo.color} px-3 py-1.5 rounded-full flex items-center gap-1.5 text-white font-bold text-sm shadow-lg animate-slide-up`}
-                        >
-                          <span className="text-lg">{levelInfo.icon}</span>
-                          <span>{levelInfo.level}</span>
-                        </div>
-                      </div>
-
-                      {levelInfo.next && (
-                        <div className="mt-3 space-y-1.5 animate-slide-up">
-                          <div className="flex justify-between text-xs text-[#8b8b8b]/60">
-                            <span>
-                              Faltam {hoursToNext}h para {getLevel(levelInfo.next).level}
-                            </span>
-                            <span className="font-bold">
-                              {((stats.totalHours / levelInfo.next) * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                          <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
-                            <div
-                              className={`h-full bg-gradient-to-r ${levelInfo.color} rounded-full transition-all duration-1000 ease-out`}
-                              style={{
-                                width: animateStats
-                                  ? `${(stats.totalHours / levelInfo.next) * 100}%`
-                                  : '0%',
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Quick Stats Grid + EXPANSÃO HORIZONTAL */}
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      {/* Streak */}
-                      <div className="stat-card bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl p-4 border border-[#8b8b8b]/20 text-center">
-                        <Flame className="w-5 h-5 text-orange-500 mx-auto mb-2" />
-                        <div
-                          className={`text-2xl font-black text-[#8b8b8b] ${animateStats ? 'animate-count-up' : 'opacity-0'}`}
-                        >
-                          {stats.weekStreak}
-                        </div>
-                        <div className="text-[10px] text-[#8b8b8b]/60 font-medium mt-1">
-                          Sequência
-                        </div>
-                      </div>
-
-                      {/* Avg per Day - EXPANDÍVEL */}
-                      <div
-                        onClick={() => setIsAvgExpanded(!isAvgExpanded)}
-                        className={`stat-card bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl p-4 border border-[#8b8b8b]/20 text-center cursor-pointer transition-all duration-300 ${isAvgExpanded ? 'ring-2 ring-green-500/50' : ''}`}
-                      >
-                        <TrendingUp className="w-5 h-5 text-green-500 mx-auto mb-2" />
-                        <div
-                          className={`text-2xl font-black text-[#8b8b8b] ${animateStats ? 'animate-count-up' : 'opacity-0'}`}
-                        >
-                          {stats.avgHoursPerDay}h
-                        </div>
-                        <div className="text-[10px] text-[#8b8b8b]/60 font-medium mt-1">
-                          Média/Dia
-                        </div>
-                        <div className="mt-2 text-[9px] text-[#8b8b8b]/40">
-                          {isAvgExpanded ? '↑ Fechar' : '↓ Detalhes'}
-                        </div>
-                      </div>
-
-                      {/* Total Days */}
-                      <div className="stat-card bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl p-4 border border-[#8b8b8b]/20 text-center">
-                        <Award className="w-5 h-5 text-blue-500 mx-auto mb-2" />
-                        <div
-                          className={`text-2xl font-black text-[#8b8b8b] ${animateStats ? 'animate-count-up' : 'opacity-0'}`}
-                        >
-                          {stats.totalDays}
-                        </div>
-                        <div className="text-[10px] text-[#8b8b8b]/60 font-medium mt-1">
-                          Dias Ativos
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* EXPANSÃO HORIZONTAL ABAIXO */}
-                    <div
-                      className={`overflow-hidden transition-all duration-300 ease-in-out ${isAvgExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
-                    >
-                      <div className="bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-xl p-4 border border-[#8b8b8b]/20 shadow-xl">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Clock className="w-4 h-4 text-green-400" />
-                          <h5 className="text-xs font-bold text-[#8b8b8b]/80">
-                            Média Diária por Atividade
-                          </h5>
-                        </div>
-                        {stats.avgPerActivity.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-3 text-xs">
-                            {stats.avgPerActivity.map((act, i) => (
-                              <div
-                                key={i}
-                                className="flex justify-between items-center bg-[#1a1a1a]/50 px-3 py-2 rounded-lg"
-                              >
-                                <span className="text-[#8b8b8b]/80 truncate max-w-[120px]">
-                                  {act.name}
-                                </span>
-                                <span className="font-mono text-green-400 font-bold">
-                                  {act.avgHours}h
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-[10px] text-[#8b8b8b]/40 text-center">
-                            Nenhuma atividade registrada.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top Activities */}
-                  <div className="bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-2xl p-5 border border-[#8b8b8b]/20">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Target className="w-5 h-5 text-[#8b8b8b]" />
-                      <h4 className="text-sm font-bold text-[#8b8b8b]">Top Atividades</h4>
-                    </div>
-                    {stats.topActivities.length > 0 ? (
-                      <div className="space-y-3">
-                        {stats.topActivities.map((act, i) => {
-                          const percentage = (
-                            ((act.hours * 60 + act.mins) / stats.totalMinutes) *
-                            100
-                          ).toFixed(1);
-                          const avgDaily =
-                            stats.avgPerActivity.find((a) => a.name === act.name)?.avgHours || 0;
-
-                          return (
-                            <div key={i} className="group">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className={`w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-xs font-bold text-white ${
-                                      i === 0
-                                        ? 'from-yellow-500 to-amber-600'
-                                        : i === 1
-                                          ? 'from-gray-400 to-gray-500'
-                                          : 'from-orange-600 to-orange-700'
-                                    }`}
-                                  >
-                                    {i + 1}
-                                  </div>
-                                  <span className="text-sm font-semibold text-[#8b8b8b] group-hover:text-[#a0a0a0] transition-colors">
-                                    {act.name}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-sm font-bold text-[#8b8b8b]">
-                                    {act.hours}h{act.mins > 0 ? ` ${act.mins}m` : ''}
-                                  </span>
-                                  <p className="text-[9px] text-[#8b8b8b]/50">{avgDaily}h/dia</p>
-                                </div>
-                              </div>
-                              <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full bg-gradient-to-r rounded-full transition-all duration-1000 ${
-                                    i === 0
-                                      ? 'from-yellow-500 to-amber-600'
-                                      : i === 1
-                                        ? 'from-gray-400 to-gray-500'
-                                        : 'from-orange-600 to-orange-700'
-                                  }`}
-                                  style={{ width: animateStats ? `${percentage}%` : '0%' }}
-                                ></div>
-                              </div>
-                              <p className="text-[10px] text-[#8b8b8b]/50 mt-1 text-right">
-                                {percentage}% do total
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-[#8b8b8b]/50 text-center py-4">
-                        Comece o grind e suas conquistas aparecerão aqui! 💪
-                      </p>
-                    )}
-                  </div>
+                  <TopActivities stats={stats} animateStats={animateStats} />
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-2">
+                    {/* ✅ BOTÃO EDITAR COM BLOQUEIO VISUAL */}
                     <button
-                      onClick={() => setIsEditing(true)}
-                      className="flex-1 px-5 py-3 bg-gradient-to-r from-[#8b8b8b] to-[#6b6b6b] text-[#1a1a1a] rounded-xl font-bold text-sm hover:scale-105 transition-all shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50 flex items-center justify-center gap-2"
+                      onClick={handleEditClick}
+                      disabled={isDemoProfile}
+                      className={`flex-1 px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                        isDemoProfile
+                          ? 'bg-[#252525] text-[#8b8b8b]/50 cursor-not-allowed border border-[#8b8b8b]/20'
+                          : 'bg-gradient-to-r from-[#8b8b8b] to-[#6b6b6b] text-[#1a1a1a] hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-[#8b8b8b]/50'
+                      }`}
+                      title={
+                        isDemoProfile ? '🔒 Perfil demo não pode ser editado' : 'Editar perfil'
+                      }
                     >
-                      <Edit2 className="w-4 h-4" />
-                      Editar Perfil
+                      {isDemoProfile ? (
+                        <>
+                          <Lock className="w-4 h-4" />
+                          Bloqueado
+                        </>
+                      ) : (
+                        <>
+                          <Edit2 className="w-4 h-4" />
+                          Editar Perfil
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={handleClose}
