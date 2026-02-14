@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Clock,
   Trash2,
@@ -10,18 +10,8 @@ import {
   Target,
 } from 'lucide-react';
 import { db } from '../../services/firebase';
+import { collection, addDoc, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  addDoc,
-  setDoc,
-  doc,
-  serverTimestamp,
-} from 'firebase/firestore';
-import {
-  getToday,
   formatDuration,
   timeToMinutes,
   minutesToTime,
@@ -31,13 +21,12 @@ import {
   isFuture,
 } from '../../utils/dateHelpers';
 import { useAuth } from '../../contexts/AuthContext';
+import { useActivities } from '../../contexts/ActivitiesContext'; // ← NOVO
 import { useTimer } from '../../contexts/TimerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerModal from '../timer/TimerModal';
-import { onCustomActivitiesSnapshot } from '../../services/activitiesService';
 
 import {
-  debugLog,
   getActivityImage,
   aggregateActivities,
   adjustActivityTime,
@@ -48,16 +37,18 @@ import {
   saveTimerActivity,
 } from '../../utils/activityListHelpers';
 
-export default function ActivityList({ refreshTrigger, onRefresh }) {
+export default function ActivityList() {
   const { currentUser } = useAuth();
   const { startTimer } = useTimer();
 
-  const [activities, setActivities] = useState([]);
-  const [isCustomMode, setIsCustomMode] = useState(false);
+  // ============================================
+  // ✅ PEGA DADOS DO CONTEXT AO INVÉS DE PROPS E LISTENERS
+  // ============================================
+  const { dailyActivities, customActivities, currentDate, changeDate, totalMinutes } =
+    useActivities();
+
   const [aggregated, setAggregated] = useState({});
   const [isFirstLoad, setIsFirstLoad] = useState(true);
-  const [totalMinutes, setTotalMinutes] = useState(0);
-  const [currentDate, setCurrentDate] = useState(getToday());
 
   const [openActivity, setOpenActivity] = useState(null);
   const [descriptionText, setDescriptionText] = useState('');
@@ -66,7 +57,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
 
-  // Estados para modal de adicionar atividade em dias anteriores
+  // Estados para modal de adicionar atividade
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [addActivityName, setAddActivityName] = useState('');
   const [addActivityTime, setAddActivityTime] = useState('');
@@ -74,8 +65,9 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   const [addActivityType, setAddActivityType] = useState('timed');
   const [addActivityLoading, setAddActivityLoading] = useState(false);
   const [addActivityError, setAddActivityError] = useState('');
+  const [isCustomMode, setIsCustomMode] = useState(false);
 
-  // Estado para editar meta do dia
+  // Estado para editar meta
   const [showEditTargetModal, setShowEditTargetModal] = useState(false);
   const [editTargetActivity, setEditTargetActivity] = useState(null);
   const [editTargetValue, setEditTargetValue] = useState('');
@@ -83,150 +75,34 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
 
   const userId = useMemo(() => currentUser?.uid, [currentUser?.uid]);
 
-  // Salvo a posição do scroll ANTES de qualquer atualização
-  const scrollPositionRef = useRef(0);
-  const isUpdatingRef = useRef(false);
-
-  const [customActivities, setCustomActivities] = useState([]);
-
-  useEffect(() => {
-    if (!currentUser?.uid) {
-      setCustomActivities([]);
-      return;
-    }
-
-    const unsubscribe = onCustomActivitiesSnapshot(currentUser.uid, (activities) => {
-      console.log('Custom activities carregadas (ActivityList):', activities);
-      setCustomActivities(activities);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser?.uid]);
-
-  const unsubscribeRef = useRef(null);
-
-  // Hook que restaura o scroll SEMPRE que o DOM mudar
-  useEffect(() => {
-    if (isUpdatingRef.current) {
-      // Bloqueia scroll no HTML
-      document.documentElement.classList.add('scroll-lock');
-
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollPositionRef.current);
-        // Dupla verificação para garantir
-        setTimeout(() => {
-          window.scrollTo(0, scrollPositionRef.current);
-          document.documentElement.classList.remove('scroll-lock');
-          isUpdatingRef.current = false;
-        }, 50);
-      });
-    }
-  });
-
-  // Cleanup do scroll lock
-  useEffect(() => {
-    return () => {
-      document.documentElement.classList.remove('scroll-lock');
-    };
-  }, []);
-
   // ============================================
-  // LISTENER FIRESTORE (SEM FLASH DE LOADING)
+  // AGREGAÇÃO (agora to usando dailyActivities do context)
   // ============================================
   useEffect(() => {
-    if (!userId) {
-      setActivities([]);
-      setTotalMinutes(0);
-      setIsFirstLoad(false);
-      return;
-    }
-
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-      unsubscribeRef.current = null;
-    }
-
-    const q = query(
-      collection(db, 'activities', userId, 'entries'),
-      where('date', '==', currentDate)
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        // aqui salvo a posição do scroll ANTES de processar
-        scrollPositionRef.current = window.scrollY;
-        isUpdatingRef.current = true;
-
-        const activitiesData = [];
-        let total = 0;
-
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (data.date === currentDate) {
-            activitiesData.push({ id: docSnap.id, ...data });
-
-            // Só soma minutos se for timed e tiver valor numérico
-            if (data.type !== 'binary' && typeof data.minutes === 'number') {
-              total += data.minutes;
-            }
-          }
-        });
-
-        activitiesData.sort((a, b) => {
-          if (!a.createdAt || !b.createdAt) return 0;
-          return b.createdAt.seconds - a.createdAt.seconds;
-        });
-
-        setActivities(activitiesData);
-        setTotalMinutes(total);
-        setIsFirstLoad(false);
-      },
-      (error) => {
-        console.error('❌ Erro no onSnapshot:', error);
-        setActivities([]);
-        setTotalMinutes(0);
-        setIsFirstLoad(false);
-      }
-    );
-
-    unsubscribeRef.current = unsubscribe;
-
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
-    };
-  }, [currentDate, userId]);
-
-  // ============================================
-  // AGREGAÇÃO
-  // ============================================
-  useEffect(() => {
-    const agg = aggregateActivities(activities, customActivities, timeToMinutes);
+    const agg = aggregateActivities(dailyActivities, customActivities, timeToMinutes);
     setAggregated(agg);
-  }, [activities, customActivities]);
+    setIsFirstLoad(false);
+  }, [dailyActivities, customActivities]);
 
   // ============================================
-  // NAVEGAÇÃO
+  // NAVEGAÇÃO (usa changeDate do context)
   // ============================================
   function handlePreviousDay() {
-    setCurrentDate(addDays(currentDate, -1));
+    changeDate(addDays(currentDate, -1));
   }
 
   function handleNextDay() {
     if (!isFuture(addDays(currentDate, 1))) {
-      setCurrentDate(addDays(currentDate, 1));
+      changeDate(addDays(currentDate, 1));
     }
   }
 
   function handleToday() {
-    setCurrentDate(getToday());
+    changeDate(new Date().toISOString().split('T')[0]);
   }
 
   // ============================================
-  // HANDLERS
+  // HANDLERS (não precisa mais de onRefresh. os listeners resolvem)
   // ============================================
   async function handleAdjustTime(activityName, minutesDelta) {
     await adjustActivityTime(
@@ -235,8 +111,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
       aggregated,
       userId,
       currentUser,
-      currentDate,
-      onRefresh
+      currentDate
     );
   }
 
@@ -246,8 +121,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
       aggregated,
       userId,
       currentDate,
-      formatDateDisplay,
-      onRefresh
+      formatDateDisplay
     );
   }
 
@@ -294,14 +168,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   }
 
   async function handleTimerComplete(activityName, totalSeconds) {
-    await saveTimerActivity(
-      activityName,
-      totalSeconds,
-      userId,
-      currentUser,
-      currentDate,
-      onRefresh
-    );
+    await saveTimerActivity(activityName, totalSeconds, userId, currentUser, currentDate);
   }
 
   function handleTimerStart(hours, minutes, seconds) {
@@ -314,7 +181,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   async function handleAddPastActivity() {
     setAddActivityError('');
 
-    // Limpa o nome se for 'custom'
     const activityName = isCustomMode ? addActivityName.trim() : addActivityName.trim();
 
     if (!activityName) {
@@ -372,7 +238,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
       setAddActivityType('timed');
       setIsCustomMode(false);
       setShowAddActivityModal(false);
-      onRefresh?.();
     } catch (error) {
       console.error('Erro ao adicionar atividade:', error);
       setAddActivityError('Erro ao salvar atividade');
@@ -402,7 +267,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
       setEditTargetLoading(true);
       const newTargetMinutes = editTargetValue ? timeToMinutes(editTargetValue) : null;
 
-      // Atualiza TODAS as entradas desta atividade no dia atual
       const entries = aggregated[editTargetActivity]?.entries || [];
 
       await Promise.all(
@@ -418,16 +282,11 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
         )
       );
 
-      // Fecha o modal ANTES do refresh
       setShowEditTargetModal(false);
       setEditTargetActivity(null);
       setEditTargetValue('');
 
-      // Aguarda um frame para garantir que o modal fechou
       await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Agora faz o refresh
-      onRefresh?.();
     } catch (error) {
       console.error('Erro ao atualizar meta:', error);
       alert('Erro ao salvar meta');
@@ -454,7 +313,6 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [openActivity]);
-
   // ============================================
   // RENDER
   // ============================================
@@ -465,10 +323,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
         .font-cinzel { font-family: 'Cinzel Decorative', serif; }
         .font-inter { font-family: 'Inter', sans-serif; }
         
-        html.scroll-lock {
-          overflow-anchor: none !important;
-          scroll-behavior: auto !important;
-        }
+        /* ✅ REMOVIDO: scroll-lock e hacks de scroll - será tratado na FASE 4 */
         
         /* Container estável */
         .activity-container {
@@ -697,7 +552,8 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             )}
                           </div>
                         </div>
-                        {/* Barra de progresso visual para binary */}
+
+                        {/* Barra de progresso */}
                         {data.type === 'binary' ? (
                           <div className="space-y-1">
                             <div className="w-full bg-green-500/20 rounded-full h-2 overflow-hidden relative">
@@ -730,6 +586,8 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             </p>
                           </div>
                         ) : null}
+
+                        {/* Botões de ação */}
                         {isToday(currentDate) ? (
                           // DIA ATUAL: Botões rápidos para atividade em andamento
                           <div className="flex flex-wrap gap-2">
@@ -780,6 +638,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                             )}
                           </div>
                         ) : (
+                          // DIAS ANTERIORES: Botões mais simples
                           data.type !== 'binary' && (
                             <div className="flex flex-wrap gap-2">
                               <button
@@ -821,6 +680,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                         )}
                       </div>
 
+                      {/* Botão deletar */}
                       <button
                         onClick={() => handleDeleteAll(name)}
                         className="absolute top-3 right-3 p-2 bg-[#1e1e1e]/90 text-[#8b8b8b] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -835,7 +695,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
           )}
         </div>
 
-        {/* Modal de Atividade */}
+        {/* Modal de Atividade (Descrição) */}
         {openActivity && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -984,10 +844,8 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
                         const selectedName = e.target.value;
                         setAddActivityName(selectedName);
 
-                        // Define modo personalizado
                         setIsCustomMode(selectedName === 'custom');
 
-                        // Se selecionou uma atividade predefinida, preenche os campos automaticamente
                         if (selectedName && selectedName !== 'custom') {
                           const activity = customActivities.find((a) => a.name === selectedName);
                           if (activity) {
@@ -1184,6 +1042,7 @@ export default function ActivityList({ refreshTrigger, onRefresh }) {
   );
 }
 
+// Componente X (ícone de fechar)
 function X({ className }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
