@@ -1,7 +1,8 @@
 import { Trash2, Timer, Target, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { formatDuration } from '../../utils/dateHelpers';
-import { getActivityImage } from '../../utils/activityListHelpers';
+
+import { formatDuration } from '../../utils/formatters/timeFormatters';
+import { getActivityImage } from '../../utils/constants/activityImages';
 
 /**
  * Card individual de atividade

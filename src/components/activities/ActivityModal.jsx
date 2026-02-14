@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, CheckCircle2 } from 'lucide-react';
-import { formatDuration } from '../../utils/dateHelpers';
+
+import { formatDuration } from '../../utils/formatters/timeFormatters';
 
 /**
  * Modal de descrição da atividade

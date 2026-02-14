@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { timeToMinutes } from '../utils/dateHelpers';
+
+import { timeToMinutes } from '../utils/formatters/timeFormatters';
 
 /**
  * Hook para calcular estatísticas do usuário
@@ -55,7 +56,7 @@ export function useUserStats(userId) {
 
           let duration = 0;
           if (type === 'binary') {
-            duration = 0; // Binary não conta em horas
+            duration = 0;
           } else if (type === 'timed') {
             if (data.minutes != null && typeof data.minutes === 'number') {
               duration = data.minutes;
@@ -84,7 +85,7 @@ export function useUserStats(userId) {
             mins: mins % 60,
           }));
 
-        // Streak (sequência de dias)
+        // Streak
         let weekStreak = 0;
         const today = new Date();
         today.setHours(0, 0, 0, 0);

@@ -11,21 +11,28 @@ import {
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { collection, addDoc, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+
+// ✅ IMPORTS CORRIGIDOS
 import {
-  formatDuration,
-  timeToMinutes,
-  minutesToTime,
+  getToday,
   addDays,
   formatDateDisplay,
   isToday,
   isFuture,
-} from '../../utils/dateHelpers';
+} from '../../utils/formatters/dateFormatters';
+import {
+  timeToMinutes,
+  minutesToTime,
+  formatDuration, // ← MOVIDO PARA CÁ
+} from '../../utils/formatters/timeFormatters';
+
 import { useAuth } from '../../contexts/AuthContext';
-import { useActivities } from '../../contexts/ActivitiesContext'; // ← NOVO
+import { useActivities } from '../../contexts/ActivitiesContext';
 import { useTimer } from '../../contexts/TimerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerModal from '../timer/TimerModal';
 
+// Helpers
 import {
   getActivityImage,
   aggregateActivities,
