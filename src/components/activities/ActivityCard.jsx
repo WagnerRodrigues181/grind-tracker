@@ -1,13 +1,14 @@
+import { memo } from 'react';
 import { Trash2, Timer, Target, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-
 import { formatDuration } from '../../utils/formatters/timeFormatters';
 import { getActivityImage } from '../../utils/constants/activityImages';
 
 /**
  * Card individual de atividade
+ * ✅ Memoizado - só re-renderiza se props mudarem
  */
-export default function ActivityCard({
+function ActivityCard({
   name,
   data,
   isToday,
@@ -102,96 +103,53 @@ export default function ActivityCard({
           </div>
         ) : null}
 
-        {/* Botões de ação */}
-        {isToday ? (
-          // DIA ATUAL
+        {/* Botões */}
+        {data.type !== 'binary' && (
           <div className="flex flex-wrap gap-2">
-            {data.type !== 'binary' && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenEditTarget(name);
-                  }}
-                  className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
-                >
-                  <Target className="w-3.5 h-3.5" />
-                  Meta
-                </button>
-                <button
-                  onClick={() => onAdjustTime(name, -30)}
-                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-                >
-                  −30
-                </button>
-                <button
-                  onClick={() => onStartTimer(name)}
-                  className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
-                >
-                  <Timer className="w-3.5 h-3.5" />
-                  <span>Timer</span>
-                </button>
-                <button
-                  onClick={() => onAdjustTime(name, 30)}
-                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
-                >
-                  +30
-                </button>
-                <button
-                  onClick={() => onAdjustTime(name, 45)}
-                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-                >
-                  +45
-                </button>
-                <button
-                  onClick={() => onAdjustTime(name, 60)}
-                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-                >
-                  +1h
-                </button>
-              </>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenEditTarget(name);
+              }}
+              className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
+            >
+              <Target className="w-3.5 h-3.5" />
+              Meta
+            </button>
+            <button
+              onClick={() => onAdjustTime(name, -30)}
+              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+            >
+              −30
+            </button>
+            {isToday && (
+              <button
+                onClick={() => onStartTimer(name)}
+                className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>Timer</span>
+              </button>
             )}
+            <button
+              onClick={() => onAdjustTime(name, 30)}
+              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
+            >
+              +30
+            </button>
+            <button
+              onClick={() => onAdjustTime(name, 45)}
+              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+            >
+              +45
+            </button>
+            <button
+              onClick={() => onAdjustTime(name, 60)}
+              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+            >
+              +1h
+            </button>
           </div>
-        ) : (
-          // DIAS ANTERIORES
-          data.type !== 'binary' && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenEditTarget(name);
-                }}
-                className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
-              >
-                <Target className="w-3.5 h-3.5" />
-                Meta
-              </button>
-              <button
-                onClick={() => onAdjustTime(name, -30)}
-                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-              >
-                −30
-              </button>
-              <button
-                onClick={() => onAdjustTime(name, 30)}
-                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
-              >
-                +30
-              </button>
-              <button
-                onClick={() => onAdjustTime(name, 45)}
-                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-              >
-                +45
-              </button>
-              <button
-                onClick={() => onAdjustTime(name, 60)}
-                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-              >
-                +1h
-              </button>
-            </div>
-          )
         )}
       </div>
 
@@ -205,3 +163,6 @@ export default function ActivityCard({
     </motion.div>
   );
 }
+
+// ✅ EXPORTA MEMOIZADO
+export default memo(ActivityCard);

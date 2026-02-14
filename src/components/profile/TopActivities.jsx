@@ -1,10 +1,11 @@
+import { memo } from 'react';
 import { Target } from 'lucide-react';
-import { formatDuration } from '../../utils/dateHelpers';
 
 /**
  * Ranking das top 3 atividades
+ * ✅ Memoizado
  */
-export default function TopActivities({ stats, animateStats }) {
+function TopActivities({ stats, animateStats }) {
   if (!stats) return null;
 
   return (
@@ -74,3 +75,6 @@ export default function TopActivities({ stats, animateStats }) {
     </div>
   );
 }
+
+// ✅ EXPORTA MEMOIZADO
+export default memo(TopActivities);

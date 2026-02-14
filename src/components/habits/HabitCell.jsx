@@ -1,7 +1,10 @@
+import { memo } from 'react';
+
 /**
  * Célula individual de check de hábito
+ * ✅ Memoizado - evita re-render de 30+ células por vez
  */
-export default function HabitCell({
+function HabitCell({
   habit,
   cellData,
   weekIdx,
@@ -34,7 +37,7 @@ export default function HabitCell({
           />
         ))}
 
-      {/* Botão de check */}
+      {/* Botão */}
       <button
         onClick={isCurrent ? () => onToggleDay(habit, cellData) : undefined}
         disabled={!isCurrent}
@@ -51,3 +54,6 @@ export default function HabitCell({
     </td>
   );
 }
+
+// ✅ EXPORTA MEMOIZADO
+export default memo(HabitCell);

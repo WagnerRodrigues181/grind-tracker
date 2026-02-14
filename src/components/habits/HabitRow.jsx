@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -5,16 +6,9 @@ import HabitCell from './HabitCell';
 
 /**
  * Linha individual de hábito (arrastável)
+ * ✅ Memoizado - ou seja, só re-renderiza se props mudarem
  */
-export default function HabitRow({
-  habit,
-  calendar,
-  pulsingDays,
-  particles,
-  onToggleDay,
-  onRemove,
-  isChecked,
-}) {
+function HabitRow({ habit, calendar, pulsingDays, particles, onToggleDay, onRemove, isChecked }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: habit,
   });
@@ -31,7 +25,7 @@ export default function HabitRow({
       style={style}
       className="border-b border-[#8b8b8b]/20 hover:bg-[#252525]/40 transition-all duration-200 habit-row"
     >
-      {/* Coluna do nome com grip */}
+      {/* Coluna do nome */}
       <td className="sticky left-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 border-r border-[#8b8b8b]/30 habit-name-cell">
         <div className="habit-name-container">
           <button
@@ -48,7 +42,7 @@ export default function HabitRow({
         </div>
       </td>
 
-      {/* Dias do calendário */}
+      {/* Dias */}
       {calendar.weeks.map((week, weekIdx) =>
         week.map((cellData, dayIdx) => (
           <HabitCell
@@ -84,3 +78,6 @@ export default function HabitRow({
     </tr>
   );
 }
+
+// ✅ EXPORTA MEMOIZADO
+export default memo(HabitRow);

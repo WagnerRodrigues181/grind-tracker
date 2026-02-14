@@ -1,9 +1,11 @@
-import { Calendar, Camera, Edit2 } from 'lucide-react';
+import { memo } from 'react';
+import { Calendar, Edit2 } from 'lucide-react';
 
 /**
  * Header do perfil (avatar + nome + data de criação)
+ * ✅ Memoizado
  */
-export default function ProfileHeader({ profile, onEdit, formatDateDisplay }) {
+function ProfileHeader({ profile, onEdit, formatDateDisplay }) {
   return (
     <div className="flex flex-col items-center">
       <div className="relative animate-float">
@@ -54,3 +56,6 @@ export default function ProfileHeader({ profile, onEdit, formatDateDisplay }) {
     </div>
   );
 }
+
+// ✅ EXPORTA MEMOIZADO
+export default memo(ProfileHeader);

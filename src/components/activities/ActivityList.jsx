@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Clock,
   Trash2,
@@ -12,7 +12,6 @@ import {
 import { db } from '../../services/firebase';
 import { collection, addDoc, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
-// ✅ IMPORTS CORRIGIDOS
 import {
   getToday,
   addDays,
@@ -20,19 +19,13 @@ import {
   isToday,
   isFuture,
 } from '../../utils/formatters/dateFormatters';
-import {
-  timeToMinutes,
-  minutesToTime,
-  formatDuration, // ← MOVIDO PARA CÁ
-} from '../../utils/formatters/timeFormatters';
-
+import { timeToMinutes, minutesToTime } from '../../utils/formatters/timeFormatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { useActivities } from '../../contexts/ActivitiesContext';
 import { useTimer } from '../../contexts/TimerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerModal from '../timer/TimerModal';
 
-// Helpers
 import {
   getActivityImage,
   aggregateActivities,
@@ -44,18 +37,24 @@ import {
   saveTimerActivity,
 } from '../../utils/activityListHelpers';
 
+// ✅ COMPONENTES LAZY LOADED
+import { lazy, Suspense } from 'react';
+const ActivityCard = lazy(() => import('./ActivityCard'));
+const ActivityModal = lazy(() => import('./ActivityModal'));
+const AddActivityModal = lazy(() => import('./AddActivityModal'));
+const EditTargetModal = lazy(() => import('./EditTargetModal'));
+
 export default function ActivityList() {
   const { currentUser } = useAuth();
   const { startTimer } = useTimer();
 
-  // ============================================
-  // ✅ PEGA DADOS DO CONTEXT AO INVÉS DE PROPS E LISTENERS
-  // ============================================
   const { dailyActivities, customActivities, currentDate, changeDate, totalMinutes } =
     useActivities();
 
-  const [aggregated, setAggregated] = useState({});
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  // ✅ MEMOIZAÇÃO: aggregated só recalcula quando dependências mudam
+  const aggregated = useMemo(() => {
+    return aggregateActivities(dailyActivities, customActivities, timeToMinutes);
+  }, [dailyActivities, customActivities]);
 
   const [openActivity, setOpenActivity] = useState(null);
   const [descriptionText, setDescriptionText] = useState('');
@@ -64,7 +63,6 @@ export default function ActivityList() {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
 
-  // Estados para modal de adicionar atividade
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [addActivityName, setAddActivityName] = useState('');
   const [addActivityTime, setAddActivityTime] = useState('');
@@ -74,7 +72,6 @@ export default function ActivityList() {
   const [addActivityError, setAddActivityError] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
 
-  // Estado para editar meta
   const [showEditTargetModal, setShowEditTargetModal] = useState(false);
   const [editTargetActivity, setEditTargetActivity] = useState(null);
   const [editTargetValue, setEditTargetValue] = useState('');
@@ -82,71 +79,73 @@ export default function ActivityList() {
 
   const userId = useMemo(() => currentUser?.uid, [currentUser?.uid]);
 
-  // ============================================
-  // AGREGAÇÃO (agora to usando dailyActivities do context)
-  // ============================================
-  useEffect(() => {
-    const agg = aggregateActivities(dailyActivities, customActivities, timeToMinutes);
-    setAggregated(agg);
-    setIsFirstLoad(false);
-  }, [dailyActivities, customActivities]);
+  // ✅ MEMOIZAÇÃO: isFirstLoad
+  const isFirstLoad = useMemo(() => {
+    return dailyActivities.length === 0 && Object.keys(aggregated).length === 0;
+  }, [dailyActivities, aggregated]);
 
-  // ============================================
-  // NAVEGAÇÃO (usa changeDate do context)
-  // ============================================
-  function handlePreviousDay() {
+  // ✅ useCallback: Funções de navegação não recriam a cada render
+  const handlePreviousDay = useCallback(() => {
     changeDate(addDays(currentDate, -1));
-  }
+  }, [changeDate, currentDate]);
 
-  function handleNextDay() {
+  const handleNextDay = useCallback(() => {
     if (!isFuture(addDays(currentDate, 1))) {
       changeDate(addDays(currentDate, 1));
     }
-  }
+  }, [changeDate, currentDate]);
 
-  function handleToday() {
-    changeDate(new Date().toISOString().split('T')[0]);
-  }
+  const handleToday = useCallback(() => {
+    changeDate(getToday());
+  }, [changeDate]);
 
-  // ============================================
-  // HANDLERS (não precisa mais de onRefresh. os listeners resolvem)
-  // ============================================
-  async function handleAdjustTime(activityName, minutesDelta) {
-    await adjustActivityTime(
-      activityName,
-      minutesDelta,
-      aggregated,
-      userId,
-      currentUser,
-      currentDate
-    );
-  }
+  // ✅ useCallback: Handlers otimizados
+  const handleAdjustTime = useCallback(
+    async (activityName, minutesDelta) => {
+      await adjustActivityTime(
+        activityName,
+        minutesDelta,
+        aggregated,
+        userId,
+        currentUser,
+        currentDate
+      );
+    },
+    [aggregated, userId, currentUser, currentDate]
+  );
 
-  async function handleDeleteAll(activityName) {
-    await deleteAllActivityEntries(
-      activityName,
-      aggregated,
-      userId,
-      currentDate,
-      formatDateDisplay
-    );
-  }
+  const handleDeleteAll = useCallback(
+    async (activityName) => {
+      if (
+        !confirm(
+          `Remover TODAS as entradas de "${activityName}" em ${formatDateDisplay(currentDate)}?`
+        )
+      ) {
+        return;
+      }
+      await deleteAllActivityEntries(activityName, aggregated, userId);
+    },
+    [aggregated, userId, currentDate]
+  );
 
-  async function openActivityModal(name) {
-    const image = getActivityImage(name);
-    const data = aggregated[name];
-    const desc = await fetchActivityDescription(userId, currentDate, name);
-    setDescriptionText(desc);
-    setOpenActivity({ name, image, data });
-  }
+  const openActivityModal = useCallback(
+    async (name) => {
+      const image = getActivityImage(name);
+      const data = aggregated[name];
+      const desc = await fetchActivityDescription(userId, currentDate, name);
+      setDescriptionText(desc);
+      setOpenActivity({ name, image, data, description: desc });
+    },
+    [aggregated, userId, currentDate]
+  );
 
-  function closeActivityModal() {
+  const closeActivityModal = useCallback(() => {
     setOpenActivity(null);
     setDescriptionText('');
     document.body.style.overflow = '';
-  }
+  }, []);
 
-  async function handleSaveDescription() {
+  const handleSaveDescription = useCallback(async () => {
     try {
       setDescLoading(true);
       await saveActivityDescription(userId, currentDate, openActivity.name, descriptionText);
@@ -156,9 +155,9 @@ export default function ActivityList() {
     } finally {
       setDescLoading(false);
     }
-  }
+  }, [userId, currentDate, openActivity, descriptionText, closeActivityModal]);
 
-  async function handleDeleteDescription() {
+  const handleDeleteDescription = useCallback(async () => {
     if (!confirm('Remover descrição desta atividade?')) return;
     try {
       await deleteActivityDescription(userId, currentDate, openActivity.name);
@@ -167,25 +166,30 @@ export default function ActivityList() {
     } catch (err) {
       console.error('Erro ao remover descrição:', err);
     }
-  }
+  }, [userId, currentDate, openActivity, closeActivityModal]);
 
-  function handleStartTimer(activityName) {
+  const handleStartTimer = useCallback((activityName) => {
     setSelectedActivity(activityName);
     setShowTimerModal(true);
-  }
+  }, []);
 
-  async function handleTimerComplete(activityName, totalSeconds) {
-    await saveTimerActivity(activityName, totalSeconds, userId, currentUser, currentDate);
-  }
+  const handleTimerComplete = useCallback(
+    async (activityName, totalSeconds) => {
+      await saveTimerActivity(activityName, totalSeconds, userId, currentUser, currentDate);
+    },
+    [userId, currentUser, currentDate]
+  );
 
-  function handleTimerStart(hours, minutes, seconds) {
-    startTimer(selectedActivity, hours, minutes, seconds, (totalSeconds) => {
-      handleTimerComplete(selectedActivity, totalSeconds);
-    });
-  }
+  const handleTimerStart = useCallback(
+    (hours, minutes, seconds) => {
+      startTimer(selectedActivity, hours, minutes, seconds, (totalSeconds) => {
+        handleTimerComplete(selectedActivity, totalSeconds);
+      });
+    },
+    [selectedActivity, startTimer, handleTimerComplete]
+  );
 
-  // Handler para adicionar atividade em dia anterior
-  async function handleAddPastActivity() {
+  const handleAddPastActivity = useCallback(async () => {
     setAddActivityError('');
 
     const activityName = isCustomMode ? addActivityName.trim() : addActivityName.trim();
@@ -238,7 +242,6 @@ export default function ActivityList() {
         });
       }
 
-      // Reset e fecha modal
       setAddActivityName('');
       setAddActivityTime('');
       setAddActivityTarget('');
@@ -251,18 +254,28 @@ export default function ActivityList() {
     } finally {
       setAddActivityLoading(false);
     }
-  }
+  }, [
+    isCustomMode,
+    addActivityName,
+    addActivityTime,
+    addActivityTarget,
+    addActivityType,
+    userId,
+    currentUser,
+    currentDate,
+  ]);
 
-  // Handler para abrir modal de editar meta
-  function handleOpenEditTarget(activityName) {
-    const data = aggregated[activityName];
-    setEditTargetActivity(activityName);
-    setEditTargetValue(data.target ? minutesToTime(data.target) : '');
-    setShowEditTargetModal(true);
-  }
+  const handleOpenEditTarget = useCallback(
+    (activityName) => {
+      const data = aggregated[activityName];
+      setEditTargetActivity(activityName);
+      setEditTargetValue(data.target ? minutesToTime(data.target) : '');
+      setShowEditTargetModal(true);
+    },
+    [aggregated]
+  );
 
-  // Handler para salvar nova meta do dia
-  async function handleSaveTarget() {
+  const handleSaveTarget = useCallback(async () => {
     const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
 
     if (editTargetValue && !timeRegex.test(editTargetValue)) {
@@ -300,11 +313,9 @@ export default function ActivityList() {
     } finally {
       setEditTargetLoading(false);
     }
-  }
+  }, [editTargetValue, aggregated, editTargetActivity, userId]);
 
-  // ============================================
-  // CLEANUP
-  // ============================================
+  // Cleanup
   useEffect(() => {
     return () => {
       document.body.style.overflow = '';
@@ -319,10 +330,18 @@ export default function ActivityList() {
     }
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [openActivity]);
-  // ============================================
-  // RENDER
-  // ============================================
+  }, [openActivity, closeActivityModal]);
+
+  // ✅ MEMOIZAÇÃO: currentDateInfo
+  const currentDateInfo = useMemo(
+    () => ({
+      isToday: isToday(currentDate),
+      displayDate: formatDateDisplay(currentDate),
+      canGoNext: !isFuture(addDays(currentDate, 1)),
+    }),
+    [currentDate]
+  );
+
   return (
     <>
       <style>{`
@@ -330,21 +349,17 @@ export default function ActivityList() {
         .font-cinzel { font-family: 'Cinzel Decorative', serif; }
         .font-inter { font-family: 'Inter', sans-serif; }
         
-        /* ✅ REMOVIDO: scroll-lock e hacks de scroll - será tratado na FASE 4 */
-        
-        /* Container estável */
+        /* Container estável - SEM hacks de scroll */
         .activity-container {
           min-height: 500px;
           position: relative;
-          contain: layout;
         }
         
-        /* Grid 4 colunas */
+        /* Grid responsivo */
         .activity-grid {
           display: grid;
           grid-template-columns: repeat(1, 1fr);
           gap: 1.5rem;
-          contain: layout;
         }
         
         @media (min-width: 768px) {
@@ -372,7 +387,7 @@ export default function ActivityList() {
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
           overflow: hidden;
-          contain: layout style paint;
+          will-change: transform;
         }
         
         .activity-card::before {
@@ -433,7 +448,7 @@ export default function ActivityList() {
                 className="text-2xl font-bold text-[#8b8b8b] font-cinzel"
                 style={{ textShadow: '0 0 20px rgba(139, 139, 139, 0.5)' }}
               >
-                {isToday(currentDate) ? 'Atividades de Hoje' : formatDateDisplay(currentDate)}
+                {currentDateInfo.isToday ? 'Atividades de Hoje' : currentDateInfo.displayDate}
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -442,7 +457,7 @@ export default function ActivityList() {
                 >
                   <ChevronLeft className="w-5 h-5 text-[#8b8b8b]" />
                 </button>
-                {!isToday(currentDate) && (
+                {!currentDateInfo.isToday && (
                   <button
                     onClick={handleToday}
                     className="px-3 py-1 text-xs bg-[#8b8b8b]/10 text-[#8b8b8b] rounded-lg hover:bg-[#8b8b8b]/20 transition-colors"
@@ -452,7 +467,7 @@ export default function ActivityList() {
                 )}
                 <button
                   onClick={handleNextDay}
-                  disabled={isFuture(addDays(currentDate, 1))}
+                  disabled={!currentDateInfo.canGoNext}
                   className="p-1.5 hover:bg-[#8b8b8b]/10 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-5 h-5 text-[#8b8b8b]" />
@@ -474,586 +489,97 @@ export default function ActivityList() {
             </div>
           ) : (
             <div className="activity-grid">
-              <AnimatePresence mode="popLayout">
-                {/* Card para adicionar atividade - SEMPRE VISÍVEL */}
-                <motion.div
-                  layout="position"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="activity-card group relative flex items-center justify-center gap-4 bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl border-2 border-dashed border-[#8b8b8b]/40 hover:border-[#8b8b8b] p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/20"
-                  onClick={() => setShowAddActivityModal(true)}
-                >
-                  <div className="text-center">
-                    <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-[#8b8b8b]/10 flex items-center justify-center">
-                      <Plus className="w-8 h-8 text-[#8b8b8b]" />
-                    </div>
-                    <p className="text-sm font-semibold text-[#8b8b8b]">Adicionar Atividade</p>
-                    <p className="text-xs text-[#8b8b8b]/60 mt-1">
-                      {Object.keys(aggregated).length === 0
-                        ? 'Adicione sua primeira atividade!'
-                        : 'Registrar atividade deste dia'}
-                    </p>
-                  </div>
-                </motion.div>
-
-                {/* Lista de atividades existentes */}
-                {Object.entries(aggregated).map(([name, data]) => {
-                  const progress = data.target ? (data.total / data.target) * 100 : 0;
-                  const isComplete = progress >= 100;
-                  const activityImage = getActivityImage(name);
-                  const remaining = data.target ? data.target - data.total : 0;
-
-                  return (
-                    <motion.div
-                      key={name}
-                      layout="position"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{
-                        layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-                        opacity: { duration: 0.15 },
-                      }}
-                      className="activity-card group relative flex items-center gap-4 bg-[#1e1e1e] rounded-xl border border-[#8b8b8b]/30 p-4"
-                    >
-                      {/* Imagem */}
-                      <button
-                        onClick={() => openActivityModal(name)}
-                        className="w-44 h-44 flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-[#8b8b8b]/5 to-[#8b8b8b]/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]"
-                      >
-                        {activityImage ? (
-                          <img
-                            src={activityImage}
-                            alt={name}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span className="text-6xl opacity-20">📄</span>
-                        )}
-                      </button>
-
-                      {/* Conteúdo */}
-                      <div className="flex-1 min-w-0 space-y-3">
-                        <div>
-                          <h3 className="text-lg font-semibold text-[#8b8b8b] truncate mb-1">
-                            {name}
-                          </h3>
-                          <div className="flex items-center gap-2 text-sm">
-                            {data.type === 'binary' ? (
-                              <div className="flex items-center gap-2 text-green-400 font-semibold">
-                                <CheckCircle2 className="w-5 h-5" />
-                                Concluído
-                              </div>
-                            ) : (
-                              <>
-                                <span className="font-bold text-[#8b8b8b]">
-                                  {formatDuration(data.total)}
-                                </span>
-                                {data.target && (
-                                  <span className="text-[#8b8b8b]/70">
-                                    / {formatDuration(data.target)} • {Math.round(progress)}%
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Barra de progresso */}
-                        {data.type === 'binary' ? (
-                          <div className="space-y-1">
-                            <div className="w-full bg-green-500/20 rounded-full h-2 overflow-hidden relative">
-                              <div
-                                className="h-full rounded-full bg-green-500 transition-all duration-300"
-                                style={{ width: '100%' }}
-                              />
-                            </div>
-                            <p className="text-xs text-green-400/90 font-medium">
-                              ✓ Tarefa concluída com sucesso
-                            </p>
-                          </div>
-                        ) : data.target ? (
-                          <div className="space-y-1">
-                            <div className="w-full bg-[#8b8b8b]/10 rounded-full h-2 overflow-hidden relative">
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  isComplete ? 'bg-green-500' : 'bg-[#8b8b8b]'
-                                }`}
-                                style={{ width: `${Math.min(progress, 100)}%` }}
-                              />
-                              {!isComplete && <div className="progress-wave" />}
-                            </div>
-                            <p className="text-xs text-[#8b8b8b]/70">
-                              {isComplete
-                                ? '✓ Meta batida!'
-                                : remaining > 0
-                                  ? `${remaining}min restantes`
-                                  : ''}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        {/* Botões de ação */}
-                        {isToday(currentDate) ? (
-                          // DIA ATUAL: Botões rápidos para atividade em andamento
-                          <div className="flex flex-wrap gap-2">
-                            {data.type !== 'binary' && (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEditTarget(name);
-                                  }}
-                                  className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
-                                >
-                                  <Target className="w-3.5 h-3.5" />
-                                  Meta
-                                </button>
-                                <button
-                                  onClick={() => handleAdjustTime(name, -30)}
-                                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-                                >
-                                  −30
-                                </button>
-                                <button
-                                  onClick={() => handleStartTimer(name)}
-                                  className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
-                                >
-                                  <Timer className="w-3.5 h-3.5" />
-                                  <span>Timer</span>
-                                </button>
-                                <button
-                                  onClick={() => handleAdjustTime(name, 30)}
-                                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
-                                >
-                                  +30
-                                </button>
-                                <button
-                                  onClick={() => handleAdjustTime(name, 45)}
-                                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-                                >
-                                  +45
-                                </button>
-                                <button
-                                  onClick={() => handleAdjustTime(name, 60)}
-                                  className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-                                >
-                                  +1h
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          // DIAS ANTERIORES: Botões mais simples
-                          data.type !== 'binary' && (
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenEditTarget(name);
-                                }}
-                                className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
-                              >
-                                <Target className="w-3.5 h-3.5" />
-                                Meta
-                              </button>
-                              <button
-                                onClick={() => handleAdjustTime(name, -30)}
-                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-                              >
-                                −30
-                              </button>
-                              <button
-                                onClick={() => handleAdjustTime(name, 30)}
-                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
-                              >
-                                +30
-                              </button>
-                              <button
-                                onClick={() => handleAdjustTime(name, 45)}
-                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-                              >
-                                +45
-                              </button>
-                              <button
-                                onClick={() => handleAdjustTime(name, 60)}
-                                className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
-                              >
-                                +1h
-                              </button>
-                            </div>
-                          )
-                        )}
+              <Suspense
+                fallback={<div className="h-48 bg-[#1e1e1e]/50 rounded-xl animate-pulse" />}
+              >
+                <AnimatePresence mode="popLayout">
+                  {/* Card adicionar */}
+                  <motion.div
+                    layout="position"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="activity-card group relative flex items-center justify-center gap-4 bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl border-2 border-dashed border-[#8b8b8b]/40 hover:border-[#8b8b8b] p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-[#8b8b8b]/20"
+                    onClick={() => setShowAddActivityModal(true)}
+                  >
+                    <div className="text-center">
+                      <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-[#8b8b8b]/10 flex items-center justify-center">
+                        <Plus className="w-8 h-8 text-[#8b8b8b]" />
                       </div>
+                      <p className="text-sm font-semibold text-[#8b8b8b]">Adicionar Atividade</p>
+                      <p className="text-xs text-[#8b8b8b]/60 mt-1">
+                        {Object.keys(aggregated).length === 0
+                          ? 'Adicione sua primeira atividade!'
+                          : 'Registrar atividade deste dia'}
+                      </p>
+                    </div>
+                  </motion.div>
 
-                      {/* Botão deletar */}
-                      <button
-                        onClick={() => handleDeleteAll(name)}
-                        className="absolute top-3 right-3 p-2 bg-[#1e1e1e]/90 text-[#8b8b8b] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
+                  {/* Cards de atividades */}
+                  {Object.entries(aggregated).map(([name, data]) => (
+                    <ActivityCard
+                      key={name}
+                      name={name}
+                      data={data}
+                      isToday={currentDateInfo.isToday}
+                      onOpenModal={openActivityModal}
+                      onOpenEditTarget={handleOpenEditTarget}
+                      onAdjustTime={handleAdjustTime}
+                      onStartTimer={handleStartTimer}
+                      onDeleteAll={handleDeleteAll}
+                    />
+                  ))}
+                </AnimatePresence>
+              </Suspense>
             </div>
           )}
         </div>
 
-        {/* Modal de Atividade (Descrição) */}
-        {openActivity && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-          >
-            <motion.div
-              initial={{ scale: 0.96, y: 8 }}
-              animate={{ scale: 1, y: 0 }}
-              className="relative w-full max-w-3xl bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 overflow-hidden"
-            >
-              <div className="flex items-center justify-between p-6 border-b border-[#8b8b8b]/30">
-                <h3 className="text-2xl font-bold text-[#8b8b8b] font-cinzel">
-                  {openActivity.name}
-                </h3>
-                <button
-                  onClick={closeActivityModal}
-                  className="p-2 text-[#8b8b8b]/70 hover:text-[#8b8b8b] hover:bg-[#8b8b8b]/10 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        {/* Modals com Suspense */}
+        <Suspense fallback={null}>
+          {openActivity && (
+            <ActivityModal
+              activity={openActivity}
+              onClose={closeActivityModal}
+              onSave={handleSaveDescription}
+              onDelete={handleDeleteDescription}
+              loading={descLoading}
+            />
+          )}
 
-              <div className="p-6 max-h-[calc(90vh-120px)] overflow-y-auto">
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-full md:w-1/3 flex-shrink-0">
-                    <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-[#8b8b8b]/5 to-[#8b8b8b]/10">
-                      {openActivity.image ? (
-                        <img
-                          src={openActivity.image}
-                          alt={openActivity.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-6xl opacity-20">
-                          📄
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-[#8b8b8b]/10 rounded-lg">
-                        {openActivity.data?.type === 'binary' ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 text-green-400" />
-                            <span className="text-sm font-bold text-green-400">Concluído</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 text-[#8b8b8b]" />
-                            <span className="text-sm font-bold text-[#8b8b8b]">
-                              {formatDuration(openActivity.data?.total || 0)}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      {openActivity.data?.target && openActivity.data?.type !== 'binary' && (
-                        <div className="text-sm text-[#8b8b8b]/70 px-3">
-                          Meta: {formatDuration(openActivity.data.target)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-[#8b8b8b] mb-2">
-                        Descrição do dia
-                      </label>
-                      <textarea
-                        value={descriptionText}
-                        onChange={(e) => setDescriptionText(e.target.value)}
-                        rows={8}
-                        placeholder="Descreva como foi o treino, notas, observações..."
-                        className="w-full resize-y p-3 rounded-lg bg-[#1a1a1a] text-[#8b8b8b] border border-[#8b8b8b]/30 focus:border-[#8b8b8b] outline-none transition-colors"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <button
-                        onClick={handleSaveDescription}
-                        className="px-4 py-2 bg-[#8b8b8b] text-[#1a1a1a] rounded-lg hover:bg-[#a0a0a0] transition-colors font-medium disabled:opacity-50"
-                        disabled={descLoading}
-                      >
-                        {descLoading ? 'Salvando...' : 'Salvar descrição'}
-                      </button>
-
-                      <button
-                        onClick={handleDeleteDescription}
-                        className="px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors font-medium"
-                      >
-                        Remover
-                      </button>
-
-                      <button
-                        onClick={closeActivityModal}
-                        className="px-4 py-2 bg-[#8b8b8b]/10 text-[#8b8b8b] rounded-lg hover:bg-[#8b8b8b]/20 transition-colors font-medium ml-auto"
-                      >
-                        Fechar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* Modal Adicionar Atividade */}
-        <AnimatePresence>
           {showAddActivityModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-              onClick={() => setShowAddActivityModal(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.96, y: 8 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.96, y: 8 }}
-                onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-md bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 p-6"
-              >
-                <h3 className="text-xl font-bold text-[#8b8b8b] font-cinzel mb-4">
-                  Adicionar Atividade
-                </h3>
-                <p className="text-sm text-[#8b8b8b]/70 mb-6">{formatDateDisplay(currentDate)}</p>
-
-                {addActivityError && (
-                  <div className="mb-4 p-3 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
-                    {addActivityError}
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  {/* DROPDOWN DE ATIVIDADES PREDEFINIDAS */}
-                  <div>
-                    <label className="block text-sm font-medium text-[#8b8b8b] mb-2">
-                      Selecione uma atividade
-                    </label>
-                    <select
-                      value={addActivityName}
-                      onChange={(e) => {
-                        const selectedName = e.target.value;
-                        setAddActivityName(selectedName);
-
-                        setIsCustomMode(selectedName === 'custom');
-
-                        if (selectedName && selectedName !== 'custom') {
-                          const activity = customActivities.find((a) => a.name === selectedName);
-                          if (activity) {
-                            setAddActivityType(activity.type || 'timed');
-                            if (activity.type === 'timed') {
-                              setAddActivityTime(activity.time || '00:30');
-                              setAddActivityTarget(activity.target || '');
-                            }
-                          }
-                        }
-                      }}
-                      className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                    >
-                      <option value="">Escolha uma predefinida ou digite abaixo</option>
-                      {customActivities.map((activity) => (
-                        <option key={activity.id} value={activity.name}>
-                          {activity.name} {activity.type === 'binary' ? '✓' : '⏱'}
-                        </option>
-                      ))}
-                      <option value="custom">✏️ Outra (personalizada)</option>
-                    </select>
-                  </div>
-
-                  {/* CAMPO DE NOME PERSONALIZADO */}
-                  {(isCustomMode || addActivityName === '') && (
-                    <input
-                      type="text"
-                      value={isCustomMode && addActivityName === 'custom' ? '' : addActivityName}
-                      onChange={(e) => setAddActivityName(e.target.value)}
-                      placeholder="Nome da atividade"
-                      className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                    />
-                  )}
-
-                  {/* TIPO DE ATIVIDADE */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setAddActivityType('timed')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        addActivityType === 'timed'
-                          ? 'border-[#8b8b8b] bg-[#8b8b8b]/10'
-                          : 'border-[#8b8b8b]/30'
-                      }`}
-                    >
-                      <Clock className="w-5 h-5 mx-auto mb-1 text-[#8b8b8b]" />
-                      <span className="text-xs text-[#8b8b8b]">Com Tempo</span>
-                    </button>
-                    <button
-                      onClick={() => setAddActivityType('binary')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        addActivityType === 'binary'
-                          ? 'border-[#8b8b8b] bg-[#8b8b8b]/10'
-                          : 'border-[#8b8b8b]/30'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-5 h-5 mx-auto mb-1 text-[#8b8b8b]" />
-                      <span className="text-xs text-[#8b8b8b]">Check</span>
-                    </button>
-                  </div>
-
-                  {/* CAMPOS DE TEMPO (só aparece se type = timed) */}
-                  {addActivityType === 'timed' && (
-                    <>
-                      <input
-                        type="text"
-                        value={addActivityTime}
-                        onChange={(e) => setAddActivityTime(e.target.value)}
-                        placeholder="Tempo gasto (HH:MM)"
-                        maxLength={5}
-                        className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                      />
-                      <input
-                        type="text"
-                        value={addActivityTarget}
-                        onChange={(e) => setAddActivityTarget(e.target.value)}
-                        placeholder="Meta do dia (opcional, HH:MM)"
-                        maxLength={5}
-                        className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                      />
-                    </>
-                  )}
-
-                  {/* BOTÕES DE AÇÃO */}
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={() => {
-                        setShowAddActivityModal(false);
-                        setAddActivityName('');
-                        setAddActivityTime('');
-                        setAddActivityTarget('');
-                        setAddActivityType('timed');
-                        setAddActivityError('');
-                      }}
-                      disabled={addActivityLoading}
-                      className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleAddPastActivity}
-                      disabled={addActivityLoading}
-                      className="flex-1 p-3 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {addActivityLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-[#1a1a1a] border-t-transparent rounded-full animate-spin" />
-                          Salvando...
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-4 h-4" />
-                          Adicionar
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
+            <AddActivityModal
+              isOpen={showAddActivityModal}
+              onClose={() => setShowAddActivityModal(false)}
+              onAdd={handleAddPastActivity}
+              customActivities={customActivities}
+              currentDate={currentDate}
+              formatDateDisplay={formatDateDisplay}
+            />
           )}
-        </AnimatePresence>
 
-        {/* Modal Editar Meta do Dia */}
-        <AnimatePresence>
           {showEditTargetModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-              onClick={() => setShowEditTargetModal(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.96, y: 8 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.96, y: 8 }}
-                onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-sm bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 p-6"
-              >
-                <h3 className="text-lg font-bold text-[#8b8b8b] font-cinzel mb-2">Ajustar Meta</h3>
-                <p className="text-sm text-[#8b8b8b]/70 mb-4">
-                  {editTargetActivity} • {formatDateDisplay(currentDate)}
-                </p>
-
-                <input
-                  type="text"
-                  value={editTargetValue}
-                  onChange={(e) => setEditTargetValue(e.target.value)}
-                  placeholder="Nova meta (HH:MM)"
-                  maxLength={5}
-                  className="w-full p-3 mb-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
-                />
-
-                <p className="text-xs text-[#8b8b8b]/60 mb-6">
-                  💡 Esta meta se aplica apenas ao dia {formatDateDisplay(currentDate)}
-                </p>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowEditTargetModal(false)}
-                    disabled={editTargetLoading}
-                    className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleSaveTarget}
-                    disabled={editTargetLoading}
-                    className="flex-1 p-3 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {editTargetLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-[#1a1a1a] border-t-transparent rounded-full animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      'Salvar'
-                    )}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
+            <EditTargetModal
+              isOpen={showEditTargetModal}
+              onClose={() => setShowEditTargetModal(false)}
+              onSave={handleSaveTarget}
+              activityName={editTargetActivity}
+              currentTarget={editTargetValue}
+              currentDate={currentDate}
+              formatDateDisplay={formatDateDisplay}
+            />
           )}
-        </AnimatePresence>
 
-        <TimerModal
-          isOpen={showTimerModal}
-          onClose={() => setShowTimerModal(false)}
-          activityName={selectedActivity}
-          onStart={handleTimerStart}
-        />
+          <TimerModal
+            isOpen={showTimerModal}
+            onClose={() => setShowTimerModal(false)}
+            activityName={selectedActivity}
+            onStart={handleTimerStart}
+          />
+        </Suspense>
       </div>
     </>
   );
 }
 
-// Componente X (ícone de fechar)
-function X({ className }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-}
+// Helper para formatDuration (importado)
+import { formatDuration } from '../../utils/formatters/timeFormatters';

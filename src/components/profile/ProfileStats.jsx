@@ -1,10 +1,11 @@
+import { memo, useState } from 'react';
 import { Trophy, Flame, TrendingUp, Award, Clock } from 'lucide-react';
-import { useState } from 'react';
 
 /**
  * Cards de estatísticas do usuário
+ * ✅ Memoizado
  */
-export default function ProfileStats({ stats, animateStats, getLevel }) {
+function ProfileStats({ stats, animateStats, getLevel }) {
   const [isAvgExpanded, setIsAvgExpanded] = useState(false);
 
   if (!stats) return null;
@@ -14,7 +15,7 @@ export default function ProfileStats({ stats, animateStats, getLevel }) {
 
   return (
     <>
-      {/* HERO CARD COM RANK */}
+      {/* HERO CARD */}
       <div className="relative group">
         <div className="absolute inset-0 bg-gradient-to-r from-[#8b8b8b]/20 to-transparent rounded-2xl blur-xl group-hover:blur-2xl transition-all"></div>
         <div className="relative bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-2xl p-6 border-2 border-[#8b8b8b]/30 trophy-shine overflow-hidden">
@@ -70,10 +71,9 @@ export default function ProfileStats({ stats, animateStats, getLevel }) {
         </div>
       </div>
 
-      {/* Quick Stats Grid */}
+      {/* Quick Stats */}
       <div className="space-y-3">
         <div className="grid grid-cols-3 gap-3">
-          {/* Streak */}
           <div className="stat-card bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl p-4 border border-[#8b8b8b]/20 text-center">
             <Flame className="w-5 h-5 text-orange-500 mx-auto mb-2" />
             <div
@@ -84,7 +84,6 @@ export default function ProfileStats({ stats, animateStats, getLevel }) {
             <div className="text-[10px] text-[#8b8b8b]/60 font-medium mt-1">Sequência</div>
           </div>
 
-          {/* Avg per Day - EXPANDÍVEL */}
           <div
             onClick={() => setIsAvgExpanded(!isAvgExpanded)}
             className={`stat-card bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl p-4 border border-[#8b8b8b]/20 text-center cursor-pointer transition-all ${isAvgExpanded ? 'ring-2 ring-green-500/50' : ''}`}
@@ -101,7 +100,6 @@ export default function ProfileStats({ stats, animateStats, getLevel }) {
             </div>
           </div>
 
-          {/* Total Days */}
           <div className="stat-card bg-gradient-to-br from-[#252525] to-[#1e1e1e] rounded-xl p-4 border border-[#8b8b8b]/20 text-center">
             <Award className="w-5 h-5 text-blue-500 mx-auto mb-2" />
             <div
@@ -113,7 +111,7 @@ export default function ProfileStats({ stats, animateStats, getLevel }) {
           </div>
         </div>
 
-        {/* EXPANSÃO HORIZONTAL */}
+        {/* Expansão */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${isAvgExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
         >
@@ -145,3 +143,6 @@ export default function ProfileStats({ stats, animateStats, getLevel }) {
     </>
   );
 }
+
+// ✅ EXPORTA MEMOIZADO
+export default memo(ProfileStats);
