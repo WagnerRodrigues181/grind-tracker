@@ -28,14 +28,8 @@ export default function Dashboard() {
             </div>
 
             {/* Form + Tabela de Hábitos */}
-            <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-8">
-              <div>
-                <ActivityForm />
-              </div>
-
-              <div>
-                <HabitsTable />
-              </div>
+            <div className="w-full">
+              <HabitsTable />
             </div>
           </div>
         </main>
