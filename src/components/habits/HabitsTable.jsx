@@ -83,6 +83,8 @@ export default function HabitsTable() {
         setHabits(habitsData);
       } catch (error) {
         console.error('Erro ao carregar hábitos:', error);
+      } finally {
+        setLoading(false);
       }
     }
 

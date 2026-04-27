@@ -4,12 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { useActivities } from '../../contexts/ActivitiesContext'; // ← NOVO
+import { useActivities } from '../../contexts/ActivitiesContext';
 import {
   addCustomActivityTemplate,
   deleteCustomActivityTemplate,
   updateCustomActivityTemplate,
 } from '../../services/activitiesService';
+import { syncHabitFromActivity } from '../../services/habitsService';
 
 const timeToMinutes = (time) => {
   const [h, m] = time.split(':').map(Number);
@@ -18,10 +19,6 @@ const timeToMinutes = (time) => {
 
 export default function ActivityForm() {
   const { currentUser } = useAuth();
-
-  // ============================================
-  // ✅ PEGA DADOS DO CONTEXT AO INVÉS DE PROPS
-  // ============================================
   const { customActivities, loadingCustomActivities, currentDate } = useActivities();
 
   const [selectedActivity, setSelectedActivity] = useState('');
@@ -95,9 +92,13 @@ export default function ActivityForm() {
         activity: activityName.trim(),
         type: 'binary',
         completed: true,
-        date: currentDate, // ← USA DATA DO CONTEXT
+        date: currentDate,
         createdAt: serverTimestamp(),
       });
+
+      // ✅ Sincroniza hábito se o nome bater
+      await syncHabitFromActivity(currentUser.uid, activityName.trim(), currentDate);
+
       setSuccess('Marcado como feito!');
       resetForm();
     } catch (err) {
@@ -120,9 +121,12 @@ export default function ActivityForm() {
         type: 'timed',
         minutes,
         targetMinutes,
-        date: currentDate, // ← USA DATA DO CONTEXT
+        date: currentDate,
         createdAt: serverTimestamp(),
       });
+
+      // ✅ Sincroniza hábito se o nome bater
+      await syncHabitFromActivity(currentUser.uid, activityName.trim(), currentDate);
 
       setSuccess('Atividade adicionada!');
       resetForm();

@@ -2,6 +2,12 @@ import { useState } from 'react';
 import { Plus, Clock, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 /**
  * Modal para adicionar atividade em dias anteriores
  */
@@ -13,6 +19,10 @@ export default function AddActivityModal({
   currentDate,
   formatDateDisplay,
 }) {
+  // FIX BUG 1: selectedOption controla o dropdown separadamente do addActivityName.
+  // Antes, ambos usavam addActivityName — digitar qualquer letra fazia
+  // addActivityName !== '' e isCustomMode === false, destruindo o input.
+  const [selectedOption, setSelectedOption] = useState('');
   const [addActivityName, setAddActivityName] = useState('');
   const [addActivityTime, setAddActivityTime] = useState('');
   const [addActivityTarget, setAddActivityTarget] = useState('');
@@ -31,9 +41,14 @@ export default function AddActivityModal({
         time: addActivityTime,
         target: addActivityTarget,
         type: addActivityType,
+        // FIX BUG 2: o listener no Context e o ActivityCard esperam `minutes` como número.
+        // Antes, só `time` (string HH:MM) era salvo — o campo `minutes` não existia
+        // no documento, então o card nunca aparecia.
+        minutes: addActivityType === 'timed' ? timeToMinutes(addActivityTime) : 0,
       });
 
       // Reset
+      setSelectedOption('');
       setAddActivityName('');
       setAddActivityTime('');
       setAddActivityTarget('');
@@ -81,14 +96,25 @@ export default function AddActivityModal({
                 Selecione uma atividade
               </label>
               <select
-                value={addActivityName}
+                value={selectedOption}
                 onChange={(e) => {
-                  const selectedName = e.target.value;
-                  setAddActivityName(selectedName);
-                  setIsCustomMode(selectedName === 'custom');
+                  const val = e.target.value;
+                  setSelectedOption(val);
 
-                  if (selectedName && selectedName !== 'custom') {
-                    const activity = customActivities.find((a) => a.name === selectedName);
+                  if (val === 'custom') {
+                    setIsCustomMode(true);
+                    setAddActivityName('');
+                  } else if (val === '') {
+                    setIsCustomMode(false);
+                    setAddActivityName('');
+                    setAddActivityTime('');
+                    setAddActivityTarget('');
+                    setAddActivityType('timed');
+                  } else {
+                    setIsCustomMode(false);
+                    setAddActivityName(val);
+
+                    const activity = customActivities.find((a) => a.name === val);
                     if (activity) {
                       setAddActivityType(activity.type || 'timed');
                       if (activity.type === 'timed') {
@@ -110,11 +136,13 @@ export default function AddActivityModal({
               </select>
             </div>
 
-            {/* NOME PERSONALIZADO */}
-            {(isCustomMode || addActivityName === '') && (
+            {/* NOME PERSONALIZADO
+                Aparece quando: modo custom ativo OU nenhuma opção selecionada.
+                selectedOption controla isso — digitar no input não afeta mais a visibilidade. */}
+            {(isCustomMode || selectedOption === '') && (
               <input
                 type="text"
-                value={isCustomMode && addActivityName === 'custom' ? '' : addActivityName}
+                value={addActivityName}
                 onChange={(e) => setAddActivityName(e.target.value)}
                 placeholder="Nome da atividade"
                 className="w-full p-3 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"

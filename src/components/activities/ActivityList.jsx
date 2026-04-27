@@ -1,16 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  Clock,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Timer,
-  CheckCircle2,
-  Plus,
-  Target,
-} from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { db } from '../../services/firebase';
-import { collection, addDoc, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 import {
   getToday,
@@ -19,12 +10,17 @@ import {
   isToday,
   isFuture,
 } from '../../utils/formatters/dateFormatters';
-import { timeToMinutes, minutesToTime } from '../../utils/formatters/timeFormatters';
+import {
+  timeToMinutes,
+  minutesToTime,
+  formatDuration,
+} from '../../utils/formatters/timeFormatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { useActivities } from '../../contexts/ActivitiesContext';
 import { useTimer } from '../../contexts/TimerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerModal from '../timer/TimerModal';
+import { syncHabitFromActivity } from '../../services/habitsService';
 
 import {
   getActivityImage,
@@ -37,7 +33,6 @@ import {
   saveTimerActivity,
 } from '../../utils/activityListHelpers';
 
-// ✅ COMPONENTES LAZY LOADED
 import { lazy, Suspense } from 'react';
 const ActivityCard = lazy(() => import('./ActivityCard'));
 const ActivityModal = lazy(() => import('./ActivityModal'));
@@ -48,10 +43,15 @@ export default function ActivityList() {
   const { currentUser } = useAuth();
   const { startTimer } = useTimer();
 
-  const { dailyActivities, customActivities, currentDate, changeDate, totalMinutes } =
-    useActivities();
+  const {
+    dailyActivities,
+    loadingDailyActivities,
+    customActivities,
+    currentDate,
+    changeDate,
+    totalMinutes,
+  } = useActivities();
 
-  // ✅ MEMOIZAÇÃO: aggregated só recalcula quando dependências mudam
   const aggregated = useMemo(() => {
     return aggregateActivities(dailyActivities, customActivities, timeToMinutes);
   }, [dailyActivities, customActivities]);
@@ -79,12 +79,6 @@ export default function ActivityList() {
 
   const userId = useMemo(() => currentUser?.uid, [currentUser?.uid]);
 
-  // ✅ MEMOIZAÇÃO: isFirstLoad
-  const isFirstLoad = useMemo(() => {
-    return dailyActivities.length === 0 && Object.keys(aggregated).length === 0;
-  }, [dailyActivities, aggregated]);
-
-  // ✅ useCallback: Funções de navegação não recriam a cada render
   const handlePreviousDay = useCallback(() => {
     changeDate(addDays(currentDate, -1));
   }, [changeDate, currentDate]);
@@ -99,7 +93,6 @@ export default function ActivityList() {
     changeDate(getToday());
   }, [changeDate]);
 
-  // ✅ useCallback: Handlers otimizados
   const handleAdjustTime = useCallback(
     async (activityName, minutesDelta) => {
       await adjustActivityTime(
@@ -189,32 +182,31 @@ export default function ActivityList() {
     [selectedActivity, startTimer, handleTimerComplete]
   );
 
-  const handleAddPastActivity = useCallback(async () => {
-    setAddActivityError('');
+  const handleAddPastActivity = useCallback(
+    async (activityData) => {
+      // recebe os dados do modal
+      setAddActivityError('');
 
-    const activityName = isCustomMode ? addActivityName.trim() : addActivityName.trim();
+      const activityName = activityData.name?.trim(); // usei agora o activityData, não estado local
+      const addActivityType = activityData.type;
+      const addActivityTime = activityData.time;
+      const addActivityTarget = activityData.target;
 
-    if (!activityName) {
-      setAddActivityError('Digite o nome da atividade');
-      return;
-    }
-
-    if (addActivityType === 'timed') {
-      const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
-
-      if (!addActivityTime || !timeRegex.test(addActivityTime)) {
-        setAddActivityError('Tempo inválido (use HH:MM)');
-        return;
+      if (!activityName) {
+        throw new Error('Digite o nome da atividade');
       }
 
-      if (addActivityTarget && !timeRegex.test(addActivityTarget)) {
-        setAddActivityError('Meta inválida (use HH:MM)');
-        return;
-      }
-    }
+      if (addActivityType === 'timed') {
+        const timeRegex = /^([0-9]{1,2}):([0-5][0-9])$/;
 
-    try {
-      setAddActivityLoading(true);
+        if (!addActivityTime || !timeRegex.test(addActivityTime)) {
+          throw new Error('Tempo inválido (use HH:MM)');
+        }
+
+        if (addActivityTarget && !timeRegex.test(addActivityTarget)) {
+          throw new Error('Meta inválida (use HH:MM)');
+        }
+      }
 
       if (addActivityType === 'binary') {
         await addDoc(collection(db, 'activities', userId, 'entries'), {
@@ -242,28 +234,11 @@ export default function ActivityList() {
         });
       }
 
-      setAddActivityName('');
-      setAddActivityTime('');
-      setAddActivityTarget('');
-      setAddActivityType('timed');
-      setIsCustomMode(false);
-      setShowAddActivityModal(false);
-    } catch (error) {
-      console.error('Erro ao adicionar atividade:', error);
-      setAddActivityError('Erro ao salvar atividade');
-    } finally {
-      setAddActivityLoading(false);
-    }
-  }, [
-    isCustomMode,
-    addActivityName,
-    addActivityTime,
-    addActivityTarget,
-    addActivityType,
-    userId,
-    currentUser,
-    currentDate,
-  ]);
+      await syncHabitFromActivity(userId, activityName, currentDate);
+      // O reset e onClose são feitos pelo próprio AddActivityModal após onAdd resolver
+    },
+    [userId, currentUser, currentDate]
+  );
 
   const handleOpenEditTarget = useCallback(
     (activityName) => {
@@ -315,7 +290,6 @@ export default function ActivityList() {
     }
   }, [editTargetValue, aggregated, editTargetActivity, userId]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       document.body.style.overflow = '';
@@ -332,7 +306,6 @@ export default function ActivityList() {
     return () => window.removeEventListener('keydown', handleEsc);
   }, [openActivity, closeActivityModal]);
 
-  // ✅ MEMOIZAÇÃO: currentDateInfo
   const currentDateInfo = useMemo(
     () => ({
       isToday: isToday(currentDate),
@@ -349,13 +322,11 @@ export default function ActivityList() {
         .font-cinzel { font-family: 'Cinzel Decorative', serif; }
         .font-inter { font-family: 'Inter', sans-serif; }
         
-        /* Container estável - SEM hacks de scroll */
         .activity-container {
           min-height: 500px;
           position: relative;
         }
         
-        /* Grid responsivo */
         .activity-grid {
           display: grid;
           grid-template-columns: repeat(1, 1fr);
@@ -380,7 +351,6 @@ export default function ActivityList() {
           }
         }
         
-        /* Cards com hover */
         .activity-card {
           transform: translateZ(0);
           backface-visibility: hidden;
@@ -412,7 +382,6 @@ export default function ActivityList() {
           left: 100%;
         }
         
-        /* Efeito de onda */
         @keyframes breathing {
           0%, 100% { 
             background-position: 0% 50%; 
@@ -483,7 +452,7 @@ export default function ActivityList() {
           </div>
 
           {/* Conteúdo */}
-          {isFirstLoad ? (
+          {loadingDailyActivities ? (
             <div className="flex items-center justify-center py-24">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#8b8b8b]"></div>
             </div>
@@ -534,7 +503,7 @@ export default function ActivityList() {
           )}
         </div>
 
-        {/* Modals com Suspense */}
+        {/* Modals */}
         <Suspense fallback={null}>
           {openActivity && (
             <ActivityModal
@@ -580,6 +549,3 @@ export default function ActivityList() {
     </>
   );
 }
-
-// Helper para formatDuration (importado)
-import { formatDuration } from '../../utils/formatters/timeFormatters';

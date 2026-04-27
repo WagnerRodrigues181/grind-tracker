@@ -24,11 +24,8 @@ export async function getUserHabitsOrdered(userId) {
       const habits = data.habits || [];
       const savedOrder = data.habitOrder || [];
 
-      // Se há ordem salva, aplicar
       if (savedOrder.length > 0) {
-        // Ordena os hábitos existentes seguindo savedOrder
         const ordered = savedOrder.filter((h) => habits.includes(h));
-        // Adiciona hábitos novos que não estão na ordem salva
         const newHabits = habits.filter((h) => !savedOrder.includes(h));
         return [...ordered, ...newHabits];
       }
@@ -59,7 +56,6 @@ export async function updateHabitsOrder(userId, orderedHabitNames) {
         updatedAt: serverTimestamp(),
       });
     } else {
-      // Se não existe, cria com a ordem fornecida
       await setDoc(configRef, {
         habits: orderedHabitNames,
         habitOrder: orderedHabitNames,
@@ -88,14 +84,12 @@ export async function addHabit(userId, habitName, duration = '01:00') {
 
     const newHabits = [...habits, habitName];
 
-    // Atualizar lista de hábitos E a ordem
     await setDoc(configRef, {
       habits: newHabits,
-      habitOrder: newHabits, // Mantém a ordem ao adicionar
+      habitOrder: newHabits,
       updatedAt: serverTimestamp(),
     });
 
-    // Armazenar duração do hábito
     const durationsSnap = await getDoc(durationsRef);
     const currentDurations = durationsSnap.exists() ? durationsSnap.data() : {};
 
@@ -120,17 +114,14 @@ export async function removeHabit(userId, habitName) {
     const durationsRef = doc(db, 'habits', userId, 'config', 'habitsDurations');
 
     const habits = await getUserHabitsOrdered(userId);
-
     const updatedHabits = habits.filter((h) => h !== habitName);
 
-    // Remove também da ordem salva
     await setDoc(configRef, {
       habits: updatedHabits,
       habitOrder: updatedHabits,
       updatedAt: serverTimestamp(),
     });
 
-    // Remover duração também
     const durationsSnap = await getDoc(durationsRef);
     if (durationsSnap.exists()) {
       const currentDurations = durationsSnap.data();
@@ -155,7 +146,7 @@ export async function getHabitDuration(userId, habitName) {
 
     if (durationsSnap.exists()) {
       const durations = durationsSnap.data();
-      return durations[habitName] || '01:00'; // Retorna 1h como padrão
+      return durations[habitName] || '01:00';
     }
 
     return '01:00';
@@ -211,5 +202,61 @@ export async function toggleHabitDay(userId, year, month, day, habitName) {
   } catch (error) {
     console.error('Erro ao toggle hábito:', error);
     throw error;
+  }
+}
+
+/**
+ * Marca um hábito como feito em um dia específico (sem toggle — só seta true)
+ * Usado para sincronizar quando a atividade é adicionada pelo ActivityForm ou ActivityList
+ */
+export async function markHabitDay(userId, year, month, day, habitName) {
+  try {
+    const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+    const dayKey = String(day).padStart(2, '0');
+    const trackingRef = doc(db, 'habits', userId, 'tracking', yearMonth);
+
+    const trackingSnap = await getDoc(trackingRef);
+    const currentData = trackingSnap.exists() ? trackingSnap.data() : {};
+
+    // Só escreve se ainda não estiver marcado (evita write desnecessário)
+    const habitData = currentData[habitName] || {};
+    if (habitData[dayKey] === true) return;
+
+    await setDoc(trackingRef, {
+      ...currentData,
+      [habitName]: {
+        ...habitData,
+        [dayKey]: true,
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao marcar hábito:', error);
+    // Não propaga: falha silenciosa pra não quebrar o fluxo principal
+  }
+}
+
+/**
+ * Sincroniza hábito a partir de uma atividade adicionada.
+ * Se o nome da atividade bater com um hábito existente, marca o dia automaticamente.
+ *
+ * @param {string} userId
+ * @param {string} activityName - Nome da atividade adicionada
+ * @param {string} dateString   - Data no formato "YYYY-MM-DD"
+ */
+export async function syncHabitFromActivity(userId, activityName, dateString) {
+  try {
+    const habits = await getUserHabitsOrdered(userId);
+
+    // Comparação case-insensitive + trim para robustez
+    const normalizedName = activityName.trim().toLowerCase();
+    const matchingHabit = habits.find((h) => h.trim().toLowerCase() === normalizedName);
+
+    if (!matchingHabit) return; // Não é um hábito, nada a fazer
+
+    const [year, month, day] = dateString.split('-').map(Number);
+    await markHabitDay(userId, year, month, day, matchingHabit);
+  } catch (error) {
+    console.error('Erro ao sincronizar hábito com atividade:', error);
+    // Falha silenciosa: não quebra o submit principal
   }
 }
