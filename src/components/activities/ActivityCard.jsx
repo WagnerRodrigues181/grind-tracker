@@ -5,6 +5,22 @@ import { formatDuration } from '../../utils/formatters/timeFormatters';
 import { getActivityImage } from '../../utils/constants/activityImages';
 
 /**
+ * Formata um Firestore Timestamp ou Date para "HH:MM"
+ */
+function formatCompletionTime(createdAt) {
+  if (!createdAt) return null;
+
+  // Firestore Timestamp tem .seconds
+  const date = createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt);
+
+  if (isNaN(date.getTime())) return null;
+
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+/**
  * Card individual de atividade
  * ✅ Memoizado - só re-renderiza se props mudarem
  */
@@ -23,6 +39,10 @@ function ActivityCard({
   const activityImage = getActivityImage(name);
   const remaining = data.target ? data.target - data.total : 0;
 
+  // Pega o createdAt da primeira entrada (binário tem só uma)
+  const completionTime =
+    data.type === 'binary' ? formatCompletionTime(data.entries?.[0]?.createdAt) : null;
+
   return (
     <motion.div
       layout="position"
@@ -33,12 +53,14 @@ function ActivityCard({
         layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
         opacity: { duration: 0.15 },
       }}
-      className="activity-card group relative flex items-center gap-4 bg-[#1e1e1e] rounded-xl border border-[#8b8b8b]/30 p-4"
+      className="activity-card group relative flex items-stretch gap-4 bg-[#1e1e1e] rounded-xl border border-[#8b8b8b]/30 p-4"
     >
-      {/* Imagem */}
+      {/* Imagem — binary usa self-stretch pra crescer com o card */}
       <button
         onClick={() => onOpenModal(name)}
-        className="w-44 h-44 flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-[#8b8b8b]/5 to-[#8b8b8b]/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]"
+        className={`flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-[#8b8b8b]/5 to-[#8b8b8b]/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#8b8b8b] w-44 ${
+          data.type === 'binary' ? 'self-stretch' : 'h-44'
+        }`}
       >
         {activityImage ? (
           <img
@@ -84,7 +106,13 @@ function ActivityCard({
                 style={{ width: '100%' }}
               />
             </div>
-            <p className="text-xs text-green-400/90 font-medium">✓ Tarefa concluída com sucesso</p>
+            {/* Mesma altura que o subtítulo dos timed — alinha visualmente */}
+            <p className="text-xs text-green-400/90 font-medium">
+              ✓ Tarefa concluída com sucesso
+              {completionTime && (
+                <span className="text-[#8b8b8b]/50 font-normal ml-2">às {completionTime}</span>
+              )}
+            </p>
           </div>
         ) : data.target ? (
           <div className="space-y-1">
@@ -103,7 +131,7 @@ function ActivityCard({
           </div>
         ) : null}
 
-        {/* Botões */}
+        {/* Botões — só timed */}
         {data.type !== 'binary' && (
           <div className="flex flex-wrap gap-2">
             <button
@@ -164,5 +192,4 @@ function ActivityCard({
   );
 }
 
-// ✅ EXPORTA MEMOIZADO
 export default memo(ActivityCard);

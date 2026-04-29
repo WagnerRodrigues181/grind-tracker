@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Clock, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Plus, Settings } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { collection, addDoc, setDoc, doc, serverTimestamp } from 'firebase/firestore';
 
@@ -21,6 +21,7 @@ import { useTimer } from '../../contexts/TimerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerModal from '../timer/TimerModal';
 import { syncHabitFromActivity } from '../../services/habitsService';
+import ManageActivitiesModal from './ManageActivitiesModal';
 
 import {
   getActivityImage,
@@ -76,6 +77,8 @@ export default function ActivityList() {
   const [editTargetActivity, setEditTargetActivity] = useState(null);
   const [editTargetValue, setEditTargetValue] = useState('');
   const [editTargetLoading, setEditTargetLoading] = useState(false);
+
+  const [showManageModal, setShowManageModal] = useState(false);
 
   const userId = useMemo(() => currentUser?.uid, [currentUser?.uid]);
 
@@ -184,10 +187,9 @@ export default function ActivityList() {
 
   const handleAddPastActivity = useCallback(
     async (activityData) => {
-      // recebe os dados do modal
       setAddActivityError('');
 
-      const activityName = activityData.name?.trim(); // usei agora o activityData, não estado local
+      const activityName = activityData.name?.trim();
       const addActivityType = activityData.type;
       const addActivityTime = activityData.time;
       const addActivityTarget = activityData.target;
@@ -228,14 +230,14 @@ export default function ActivityList() {
           activity: activityName,
           type: 'timed',
           minutes,
-          targetMinutes,
+          targetMinutes, // Mantém compatibilidade
+          target: targetMinutes, // Campo adicional para garantir leitura
           date: currentDate,
           createdAt: serverTimestamp(),
         });
       }
 
       await syncHabitFromActivity(userId, activityName, currentDate);
-      // O reset e onClose são feitos pelo próprio AddActivityModal após onAdd resolver
     },
     [userId, currentUser, currentDate]
   );
@@ -264,12 +266,19 @@ export default function ActivityList() {
 
       const entries = aggregated[editTargetActivity]?.entries || [];
 
+      if (entries.length === 0) {
+        alert('Nenhuma entrada encontrada para esta atividade no dia atual.');
+        return;
+      }
+
+      // Atualiza todas as entradas do dia para esta atividade
       await Promise.all(
         entries.map((entry) =>
           setDoc(
             doc(db, 'activities', userId, 'entries', entry.id),
             {
               targetMinutes: newTargetMinutes,
+              target: newTargetMinutes, // Campo adicional para garantir leitura
               updatedAt: serverTimestamp(),
             },
             { merge: true }
@@ -281,10 +290,11 @@ export default function ActivityList() {
       setEditTargetActivity(null);
       setEditTargetValue('');
 
+      // Pequeno delay para garantir que o snapshot seja processado
       await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (error) {
       console.error('Erro ao atualizar meta:', error);
-      alert('Erro ao salvar meta');
+      alert('Erro ao salvar meta. Tente novamente.');
     } finally {
       setEditTargetLoading(false);
     }
@@ -410,8 +420,7 @@ export default function ActivityList() {
 
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20">
         <div className="activity-container">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div className="flex items-center gap-4">
               <h2
                 className="text-2xl font-bold text-[#8b8b8b] font-cinzel"
@@ -443,15 +452,24 @@ export default function ActivityList() {
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-[#8b8b8b]/10 rounded-lg">
-              <Clock className="w-5 h-5 text-[#8b8b8b]" />
-              <span className="text-base font-bold text-[#8b8b8b]">
-                {formatDuration(totalMinutes)}
-              </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowManageModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-[#252525] hover:bg-[#2a2a2a] rounded-lg transition-all duration-300 border border-[#8b8b8b]/30 hover:border-[#8b8b8b]/50 hover:shadow-lg group"
+                title="Gerenciar atividades predefinidas"
+              >
+                <Settings className="w-4 h-4 text-[#8b8b8b] group-hover:rotate-12 transition-transform" />
+                <span className="text-sm text-[#8b8b8b] hidden sm:inline">Gerenciar</span>
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 bg-[#8b8b8b]/10 rounded-lg">
+                <Clock className="w-5 h-5 text-[#8b8b8b]" />
+                <span className="text-base font-bold text-[#8b8b8b]">
+                  {formatDuration(totalMinutes)}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Conteúdo */}
           {loadingDailyActivities ? (
             <div className="flex items-center justify-center py-24">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#8b8b8b]"></div>
@@ -462,7 +480,6 @@ export default function ActivityList() {
                 fallback={<div className="h-48 bg-[#1e1e1e]/50 rounded-xl animate-pulse" />}
               >
                 <AnimatePresence mode="popLayout">
-                  {/* Card adicionar */}
                   <motion.div
                     layout="position"
                     initial={{ opacity: 0 }}
@@ -483,7 +500,6 @@ export default function ActivityList() {
                     </div>
                   </motion.div>
 
-                  {/* Cards de atividades */}
                   {Object.entries(aggregated).map(([name, data]) => (
                     <ActivityCard
                       key={name}
@@ -503,7 +519,6 @@ export default function ActivityList() {
           )}
         </div>
 
-        {/* Modals */}
         <Suspense fallback={null}>
           {openActivity && (
             <ActivityModal
@@ -543,6 +558,11 @@ export default function ActivityList() {
             onClose={() => setShowTimerModal(false)}
             activityName={selectedActivity}
             onStart={handleTimerStart}
+          />
+
+          <ManageActivitiesModal
+            isOpen={showManageModal}
+            onClose={() => setShowManageModal(false)}
           />
         </Suspense>
       </div>
