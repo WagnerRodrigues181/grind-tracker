@@ -29,7 +29,7 @@ export default function ManageActivitiesModal({ isOpen, onClose }) {
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
 
-  // Prevenir scroll do body quando modal estiver aberto
+  // Pra prevenir scroll do body quando modal estiver aberto
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';

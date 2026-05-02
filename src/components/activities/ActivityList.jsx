@@ -171,7 +171,7 @@ export default function ActivityList() {
 
   const handleTimerComplete = useCallback(
     async (activityName, totalSeconds) => {
-      await saveTimerActivity(activityName, totalSeconds, userId, currentUser, currentDate);
+      await saveTimerActivity(activityName, totalSeconds, userId, currentUser.email, currentDate);
     },
     [userId, currentUser, currentDate]
   );

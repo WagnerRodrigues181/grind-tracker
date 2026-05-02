@@ -2,28 +2,67 @@
  * Service para operações relacionadas ao timer
  */
 
-import { collection, addDoc, setDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  setDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
  * Salva atividade registrada pelo timer
+ * Agora com logging e tratamento de erro robusto
  */
 export async function saveTimerActivity(activityName, totalSeconds, userId, userEmail, date) {
   const minutes = Math.floor(totalSeconds / 60);
 
+  console.log('[Timer] Salvando atividade:', { activityName, totalSeconds, minutes, userId, date });
+
   try {
-    await addDoc(collection(db, 'activities', userId, 'entries'), {
+    // Opcional: busca se já existe meta (target) para esta atividade neste dia
+    let targetMinutes = null;
+    try {
+      const activitiesRef = collection(db, 'activities', userId, 'entries');
+      const q = query(
+        activitiesRef,
+        where('date', '==', date),
+        where('activity', '==', activityName)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        // Pega o targetMinutes da primeira entrada (todas devem ter o mesmo target para o dia)
+        targetMinutes = snapshot.docs[0].data().targetMinutes || null;
+        console.log('[Timer] Meta encontrada para o dia:', targetMinutes);
+      }
+    } catch (err) {
+      console.warn('[Timer] Não foi possível buscar meta existente:', err);
+      // Continua mesmo sem meta
+    }
+
+    // Adiciona a entrada
+    const entryData = {
       userId,
       userEmail,
       activity: activityName,
       type: 'timed',
       minutes,
+      targetMinutes,
+      target: targetMinutes, // campo redundante para compatibilidade
       date,
       createdAt: serverTimestamp(),
-    });
+    };
+
+    const docRef = await addDoc(collection(db, 'activities', userId, 'entries'), entryData);
+    console.log('[Timer] Atividade salva com sucesso! ID:', docRef.id);
   } catch (error) {
-    console.error('Erro ao salvar timer:', error);
-    throw error;
+    console.error('[Timer] Erro ao salvar atividade do timer:', error);
+    throw error; // Repassa o erro para ser tratado no callback
   }
 }
 
@@ -64,13 +103,17 @@ export async function adjustActivityTime(
       }
     } else {
       // Adicionando tempo
+      // Buscar target existente para manter consistência
+      const existingTarget = aggregated[activityName]?.target || null;
+
       await addDoc(collection(db, 'activities', userId, 'entries'), {
         userId,
         userEmail: currentUser.email,
         activity: activityName,
         type: aggregated[activityName]?.type || 'timed',
         minutes: minutesDelta,
-        targetMinutes: aggregated[activityName]?.target || null,
+        targetMinutes: existingTarget,
+        target: existingTarget,
         date: currentDate,
         createdAt: serverTimestamp(),
       });

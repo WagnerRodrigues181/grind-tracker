@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext } from 'react';
 
 const TimerContext = createContext(null);
 
+// Chave do localStorage APENAS para timers sem callback (não usado na UI)
 const STORAGE_KEY = 'grindtracker_active_timer';
 
 export function TimerProvider({ children }) {
@@ -12,23 +13,28 @@ export function TimerProvider({ children }) {
   const intervalRef = useRef(null);
   const notificationRef = useRef(null);
 
-  // Solicitar permissão de notificação ao montar
+  // Solicitar permissão de notificação
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // Restaurar timer do localStorage ao montar
+  // ⚠️ NÃO restaurar timers com callback (UI) para evitar perda do callback
+  // Apenas timers "sistema" (sem callback) seriam restaurados, mas atualmente nenhum é criado assim
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
         const data = JSON.parse(stored);
+        // Se o timer salvo tem onComplete, ignoramos porque não pode ser restaurado
+        if (data.hasCallback) {
+          localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
         const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
         const remaining = data.totalSeconds - elapsed;
-
-        if (remaining > 0) {
+        if (remaining > 0 && !data.hasCallback) {
           setActiveTimer({
             activityName: data.activityName,
             totalSeconds: data.totalSeconds,
@@ -46,9 +52,9 @@ export function TimerProvider({ children }) {
     }
   }, []);
 
-  // Persistir timer no localStorage
+  // Persistir timer no localStorage (apenas se NÃO tiver callback)
   useEffect(() => {
-    if (activeTimer) {
+    if (activeTimer && !activeTimer.onComplete) {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -56,6 +62,7 @@ export function TimerProvider({ children }) {
           totalSeconds: activeTimer.totalSeconds,
           startTime: activeTimer.startTime,
           isPaused,
+          hasCallback: !!activeTimer.onComplete,
         })
       );
     } else {
@@ -81,7 +88,7 @@ export function TimerProvider({ children }) {
         }
 
         // Aviso aos 30 segundos
-        if (prev === 30 && !hasWarned) {
+        if (prev === 30 && !hasWarned && activeTimer.onComplete) {
           showWarningNotification();
           setHasWarned(true);
         }
@@ -100,24 +107,17 @@ export function TimerProvider({ children }) {
   function showWarningNotification() {
     if ('Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('⚠️ Timer terminando', {
-        body: `${activeTimer.activityName} - Restam 30 segundos!`,
+        body: `${activeTimer?.activityName} - Restam 30 segundos!`,
         icon: '/android-chrome-512x512.png',
         badge: '/android-chrome-512x512.png',
         tag: 'timer-warning',
-        silent: false, // Usa som do sistema
+        silent: false,
       });
-
       notification.onclick = () => {
         window.focus();
         notification.close();
       };
-
-      // Auto-fechar após 5 segundos
-      setTimeout(() => {
-        if (notification) {
-          notification.close();
-        }
-      }, 5000);
+      setTimeout(() => notification.close(), 5000);
     }
   }
 
@@ -127,32 +127,25 @@ export function TimerProvider({ children }) {
       intervalRef.current = null;
     }
 
-    // Mostrar notificação do sistema (COM SOM DO SISTEMA)
+    // Mostrar notificação de conclusão
     if ('Notification' in window && Notification.permission === 'granted') {
       notificationRef.current = new Notification('✨ Timer Concluído!', {
-        body: `${activeTimer.activityName} - ${formatTime(activeTimer.totalSeconds)} completado!`,
+        body: `${activeTimer?.activityName} - ${formatTime(activeTimer?.totalSeconds || 0)} completado!`,
         icon: '/android-chrome-512x512.png',
         badge: '/android-chrome-512x512.png',
         tag: 'timer-complete',
         requireInteraction: true,
-        silent: false, // IMPORTANTE: false = usa som do sistema Windows
+        silent: false,
       });
-
       notificationRef.current.onclick = () => {
         window.focus();
-        notificationRef.current.close();
+        notificationRef.current?.close();
       };
-
-      // Auto-fechar após 15 segundos
-      setTimeout(() => {
-        if (notificationRef.current) {
-          notificationRef.current.close();
-        }
-      }, 15000);
+      setTimeout(() => notificationRef.current?.close(), 15000);
     }
 
-    // Chamar callback de conclusão
-    if (activeTimer.onComplete) {
+    // Chamar callback de conclusão (apenas se existir)
+    if (activeTimer?.onComplete) {
       activeTimer.onComplete(activeTimer.totalSeconds);
     }
 
@@ -168,20 +161,24 @@ export function TimerProvider({ children }) {
     const totalSeconds = hours * 3600 + minutes * 60 + seconds;
     if (totalSeconds <= 0) return;
 
-    // Fechar notificação anterior se existir
+    // Fechar notificação anterior
     if (notificationRef.current) {
       notificationRef.current.close();
     }
 
-    setActiveTimer({
+    const newTimer = {
       activityName,
       totalSeconds,
-      onComplete,
+      onComplete, // guarda callback (não será persistido)
       startTime: Date.now(),
-    });
+    };
+
+    setActiveTimer(newTimer);
     setRemainingSeconds(totalSeconds);
     setIsPaused(false);
     setHasWarned(false);
+    // Não salva no localStorage porque tem callback
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   function pauseTimer() {
@@ -222,7 +219,8 @@ export function TimerProvider({ children }) {
 
   function getProgress() {
     if (!activeTimer) return 0;
-    return ((activeTimer.totalSeconds - remainingSeconds) / activeTimer.totalSeconds) * 100;
+    const elapsed = activeTimer.totalSeconds - remainingSeconds;
+    return (elapsed / activeTimer.totalSeconds) * 100;
   }
 
   return (
