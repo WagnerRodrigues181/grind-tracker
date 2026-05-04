@@ -92,9 +92,8 @@ npm install
 npm run dev
 ```
 Acesse: `http://localhost:5173`
-Login:
-- Email: `guestuser@grindtracker.com`
-- Senha: `guestuser1234`
+
+> Para testar sem criar conta, use o botão **"Testar como Demo"** na tela de login.
 ---
 ## 🤝 **Contribuições**
 Quer entrar no grind?
