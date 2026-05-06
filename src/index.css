@@ -16,6 +16,22 @@
   html.no-scroll-behavior {
     scroll-behavior: auto !important;
   }
+
+  /* MOBILE: previne overflow horizontal global */
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* MOBILE: garante que inputs não causem zoom no iOS (font-size mínimo 16px) */
+  @media (max-width: 768px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
 }
 
 /* Components */
@@ -32,10 +48,27 @@
     @apply w-full px-4 py-2 border border-primary-accent rounded-lg 
     focus:ring-2 focus:ring-primary-third focus:border-transparent 
     outline-none bg-primary-second text-primary-third placeholder-primary-accent;
+    /* MOBILE: previne zoom no iOS */
+    font-size: 16px;
   }
 
   .card {
     @apply bg-primary-second rounded-xl shadow-sm border border-primary-accent p-6 text-primary-third;
+  }
+
+  /* MOBILE: card com padding reduzido em telas pequenas */
+  @media (max-width: 640px) {
+    .card {
+      @apply p-4;
+    }
+  }
+
+  /* MOBILE: modal base — garante que modais não ultrapassem a viewport */
+  .modal-mobile-safe {
+    @apply w-full max-w-lg mx-auto;
+    max-height: 90dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -54,6 +87,14 @@
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1.5rem;
     will-change: contents;
+  }
+
+  /* MOBILE: grid de 1 coluna em telas pequenas */
+  @media (max-width: 640px) {
+    .stable-grid {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
   }
 
   /* Cards com GPU acceleration */
@@ -171,6 +212,18 @@
   will-change: contents;
 }
 
+/* MOBILE: activity grid em coluna única */
+@media (max-width: 640px) {
+  .activity-list-container {
+    min-height: unset;
+  }
+
+  .activity-grid-optimized {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+}
+
 .activity-card-optimized {
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -219,4 +272,56 @@ img {
 [data-framer-motion] {
   will-change: transform, opacity;
   transform: translateZ(0);
+}
+
+/* ============================================
+   MOBILE UTILITIES — usadas pelos componentes
+   ============================================ */
+
+/* Scroll horizontal seguro para tabelas/conteúdo wide */
+.mobile-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.mobile-scroll-x::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Overlay de modal responsivo */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  /* Modal sobe da parte de baixo no mobile (bottom sheet) */
+  .modal-overlay > * {
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 92dvh;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Touch target mínimo recomendado (44px) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

@@ -63,7 +63,7 @@ export default function AddActivityModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.div
@@ -71,12 +71,14 @@ export default function AddActivityModal({
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.96, y: 8 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md bg-gradient-to-br from-[#1e1e1e] to-[#252525] rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 p-6"
+            className="relative w-full sm:max-w-md bg-gradient-to-br from-[#1e1e1e] to-[#252525]
+              rounded-t-2xl sm:rounded-2xl shadow-2xl border-2 border-[#8b8b8b]/30 p-5 sm:p-6
+              max-h-[92dvh] overflow-y-auto"
           >
-            <h3 className="text-xl font-bold text-[#8b8b8b] font-cinzel mb-4">
+            <h3 className="text-xl font-bold text-[#8b8b8b] font-cinzel mb-1">
               Adicionar Atividade
             </h3>
-            <p className="text-sm text-[#8b8b8b]/70 mb-6">{formatDateDisplay(currentDate)}</p>
+            <p className="text-sm text-[#8b8b8b]/70 mb-5">{formatDateDisplay(currentDate)}</p>
 
             {addActivityError && (
               <div className="mb-4 p-3 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
@@ -92,7 +94,7 @@ export default function AddActivityModal({
                   </label>
                   <button
                     onClick={() => setShowManageModal(true)}
-                    className="text-xs flex items-center gap-1 text-[#8b8b8b]/60 hover:text-[#8b8b8b] transition-colors"
+                    className="text-xs flex items-center gap-1 text-[#8b8b8b]/60 hover:text-[#8b8b8b] transition-colors touch-target"
                   >
                     <Settings className="w-3 h-3" /> Gerenciar
                   </button>
@@ -151,7 +153,7 @@ export default function AddActivityModal({
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setAddActivityType('timed')}
-                  className={`p-3 rounded-xl border-2 transition-all ${
+                  className={`p-3 rounded-xl border-2 transition-all touch-target ${
                     addActivityType === 'timed'
                       ? 'border-[#8b8b8b] bg-[#8b8b8b]/10'
                       : 'border-[#8b8b8b]/30'
@@ -162,7 +164,7 @@ export default function AddActivityModal({
                 </button>
                 <button
                   onClick={() => setAddActivityType('binary')}
-                  className={`p-3 rounded-xl border-2 transition-all ${
+                  className={`p-3 rounded-xl border-2 transition-all touch-target ${
                     addActivityType === 'binary'
                       ? 'border-[#8b8b8b] bg-[#8b8b8b]/10'
                       : 'border-[#8b8b8b]/30'
@@ -198,14 +200,14 @@ export default function AddActivityModal({
                 <button
                   onClick={onClose}
                   disabled={addActivityLoading}
-                  className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50"
+                  className="flex-1 p-3 bg-[#1a1a1a] hover:bg-[#252525] text-[#8b8b8b] rounded-xl transition-all font-medium border border-[#8b8b8b]/30 disabled:opacity-50 touch-target"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={addActivityLoading}
-                  className="flex-1 p-3 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 p-3 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2 touch-target"
                 >
                   {addActivityLoading ? (
                     <>

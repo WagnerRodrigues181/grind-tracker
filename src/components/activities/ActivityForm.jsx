@@ -132,19 +132,21 @@ export default function ActivityForm() {
         .btn-hover-scale:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(139, 139, 139, 0.3); }
       `}</style>
 
-      <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-6 border-2 border-[#8b8b8b]/20">
-        <div className="flex justify-between items-center mb-6">
+      {/* MOBILE: padding menor, título menor */}
+      <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl font-inter p-4 sm:p-6 border-2 border-[#8b8b8b]/20">
+        <div className="flex justify-between items-center mb-4 sm:mb-6">
           <h2
-            className="text-2xl font-bold text-[#8b8b8b] font-cinzel"
+            className="text-xl sm:text-2xl font-bold text-[#8b8b8b] font-cinzel"
             style={{ textShadow: '0 0 20px rgba(139,139,139,0.5)' }}
           >
             Adicionar Atividade
           </h2>
           <button
             onClick={() => setShowManageModal(true)}
-            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition-colors"
+            className="text-sm flex items-center gap-1 text-[#8b8b8b]/70 hover:text-[#8b8b8b] transition-colors touch-target"
           >
-            <Settings className="w-4 h-4" /> Gerenciar
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Gerenciar</span>
           </button>
         </div>
 
@@ -159,7 +161,7 @@ export default function ActivityForm() {
               <select
                 value={selectedActivity}
                 onChange={(e) => handleSelectActivity(e.target.value)}
-                className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                className="w-full p-3 sm:p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
                 disabled={loading}
               >
                 <option value="">Selecione uma atividade</option>
@@ -180,25 +182,25 @@ export default function ActivityForm() {
                 placeholder="Nome da atividade"
                 value={customActivity}
                 onChange={(e) => setCustomActivity(e.target.value)}
-                className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                className="w-full p-3 sm:p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
                 disabled={loading}
               />
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setActivityType('timed')}
-                  className={`p-4 rounded-xl border-2 transition-all ${activityType === 'timed' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b8b]/30'}`}
+                  className={`p-3 sm:p-4 rounded-xl border-2 transition-all touch-target ${activityType === 'timed' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b8b]/30'}`}
                 >
-                  <Clock className="w-5 h-5 mx-auto mb-2 text-[#8b8b8b]" />
-                  <span className="text-sm text-[#8b8b8b]">Com Tempo</span>
+                  <Clock className="w-5 h-5 mx-auto mb-1 sm:mb-2 text-[#8b8b8b]" />
+                  <span className="text-xs sm:text-sm text-[#8b8b8b]">Com Tempo</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActivityType('binary')}
-                  className={`p-4 rounded-xl border-2 transition-all ${activityType === 'binary' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b8b]/30'}`}
+                  className={`p-3 sm:p-4 rounded-xl border-2 transition-all touch-target ${activityType === 'binary' ? 'border-[#8b8b8b] bg-[#8b8b8b]/10' : 'border-[#8b8b8b]/30'}`}
                 >
-                  <CheckSquare className="w-5 h-5 mx-auto mb-2 text-[#8b8b8b]" />
-                  <span className="text-sm text-[#8b8b8b]">Check Diário</span>
+                  <CheckSquare className="w-5 h-5 mx-auto mb-1 sm:mb-2 text-[#8b8b8b]" />
+                  <span className="text-xs sm:text-sm text-[#8b8b8b]">Check Diário</span>
                 </button>
               </div>
             </>
@@ -212,7 +214,7 @@ export default function ActivityForm() {
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 maxLength={5}
-                className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                className="w-full p-3 sm:p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
                 disabled={loading}
               />
               <input
@@ -221,19 +223,19 @@ export default function ActivityForm() {
                 value={targetTime}
                 onChange={(e) => setTargetTime(e.target.value)}
                 maxLength={5}
-                className="w-full p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
+                className="w-full p-3 sm:p-4 bg-[#1a1a1a] text-[#8b8b8b] rounded-xl border border-[#8b8b8b]/30 focus:border-[#8b8b8b] focus:outline-none transition-all"
                 disabled={loading}
               />
             </>
           )}
 
           {error && (
-            <div className="p-4 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
+            <div className="p-3 sm:p-4 bg-red-900/30 border border-red-600/50 rounded-xl text-red-300 text-sm">
               {error}
             </div>
           )}
           {success && (
-            <div className="p-4 bg-green-900/30 border border-green-600/50 rounded-xl text-green-300 text-sm">
+            <div className="p-3 sm:p-4 bg-green-900/30 border border-green-600/50 rounded-xl text-green-300 text-sm">
               {success}
             </div>
           )}
@@ -241,7 +243,7 @@ export default function ActivityForm() {
           <button
             onClick={handleSubmit}
             disabled={loading || loadingCustomActivities}
-            className="w-full p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl font-semibold shadow-lg btn-hover-scale flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-3 sm:p-4 bg-[#8b8b8b] hover:bg-[#a0a0a0] text-[#1a1a1a] rounded-xl font-semibold shadow-lg btn-hover-scale flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed touch-target"
           >
             {loading ? (
               <>

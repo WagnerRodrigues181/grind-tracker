@@ -9,12 +9,8 @@ import { getActivityImage } from '../../utils/constants/activityImages';
  */
 function formatCompletionTime(createdAt) {
   if (!createdAt) return null;
-
-  // Firestore Timestamp tem .seconds
   const date = createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt);
-
   if (isNaN(date.getTime())) return null;
-
   const h = String(date.getHours()).padStart(2, '0');
   const m = String(date.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
@@ -39,7 +35,6 @@ function ActivityCard({
   const activityImage = getActivityImage(name);
   const remaining = data.target ? data.target - data.total : 0;
 
-  // Pega o createdAt da primeira entrada (binário tem só uma)
   const completionTime =
     data.type === 'binary' ? formatCompletionTime(data.entries?.[0]?.createdAt) : null;
 
@@ -53,14 +48,20 @@ function ActivityCard({
         layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
         opacity: { duration: 0.15 },
       }}
-      className="activity-card group relative flex items-stretch gap-4 bg-[#1e1e1e] rounded-xl border border-[#8b8b8b]/30 p-4"
+      className="activity-card group relative flex items-stretch gap-3 sm:gap-4 bg-[#1e1e1e] rounded-xl border border-[#8b8b8b]/30 p-3 sm:p-4"
     >
-      {/* Imagem — binary usa self-stretch pra crescer com o card */}
+      {/*
+        IMAGEM
+        MOBILE: w-24 h-24 (cabe bem em 375px sem dominar o card)
+        DESKTOP: w-44 h-44 como antes
+        binary usa self-stretch em ambos
+      */}
       <button
         onClick={() => onOpenModal(name)}
-        className={`flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-[#8b8b8b]/5 to-[#8b8b8b]/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#8b8b8b] w-44 ${
-          data.type === 'binary' ? 'self-stretch' : 'h-44'
-        }`}
+        className={`flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-[#8b8b8b]/5 to-[#8b8b8b]/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#8b8b8b]
+          w-24 sm:w-36 md:w-44
+          ${data.type === 'binary' ? 'self-stretch' : 'h-24 sm:h-36 md:h-44'}
+        `}
       >
         {activityImage ? (
           <img
@@ -70,25 +71,27 @@ function ActivityCard({
             loading="lazy"
           />
         ) : (
-          <span className="text-6xl opacity-20">📄</span>
+          <span className="text-4xl sm:text-6xl opacity-20">📄</span>
         )}
       </button>
 
       {/* Conteúdo */}
-      <div className="flex-1 min-w-0 space-y-3">
+      <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
         <div>
-          <h3 className="text-lg font-semibold text-[#8b8b8b] truncate mb-1">{name}</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-[#8b8b8b] truncate mb-1">
+            {name}
+          </h3>
           <div className="flex items-center gap-2 text-sm">
             {data.type === 'binary' ? (
-              <div className="flex items-center gap-2 text-green-400 font-semibold">
-                <CheckCircle2 className="w-5 h-5" />
+              <div className="flex items-center gap-1.5 text-green-400 font-semibold">
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 Concluído
               </div>
             ) : (
               <>
                 <span className="font-bold text-[#8b8b8b]">{formatDuration(data.total)}</span>
                 {data.target && (
-                  <span className="text-[#8b8b8b]/70">
+                  <span className="text-[#8b8b8b]/70 text-xs sm:text-sm">
                     / {formatDuration(data.target)} • {Math.round(progress)}%
                   </span>
                 )}
@@ -106,7 +109,6 @@ function ActivityCard({
                 style={{ width: '100%' }}
               />
             </div>
-            {/* Mesma altura que o subtítulo dos timed — alinha visualmente */}
             <p className="text-xs text-green-400/90 font-medium">
               ✓ Tarefa concluída com sucesso
               {completionTime && (
@@ -131,49 +133,61 @@ function ActivityCard({
           </div>
         ) : null}
 
-        {/* Botões — só timed */}
+        {/* Botões de ação, só timed */}
         {data.type !== 'binary' && (
-          <div className="flex flex-wrap gap-2">
+          /*
+            MOBILE: grid 3 colunas para os botões de tempo ficarem uniformes
+            DESKTOP: flex-wrap como antes
+            A classe sm:flex sm:flex-wrap garante que em sm+ volta ao layout original
+          */
+          <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
+            {/* Meta — ocupa linha inteira no mobile (col-span-3), flex-1 no desktop */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenEditTarget(name);
               }}
-              className="flex-1 min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
+              className="col-span-3 sm:col-auto sm:flex-1 sm:min-w-[80px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/5 text-[#8b8b8b]/80 rounded-md hover:bg-[#8b8b8b]/10 transition-colors border border-[#8b8b8b]/20 flex items-center justify-center gap-1"
             >
               <Target className="w-3.5 h-3.5" />
               Meta
             </button>
+
             <button
               onClick={() => onAdjustTime(name, -30)}
-              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+              className="px-2 py-1.5 text-xs font-medium bg-red-500/10 text-red-400 rounded-md hover:bg-red-500/20 transition-colors text-center"
             >
               −30
             </button>
-            {isToday && (
+
+            {isToday ? (
               <button
                 onClick={() => onStartTimer(name)}
-                className="flex-1 min-w-[48px] flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
+                className="flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-400 rounded-md hover:from-blue-500/20 hover:to-purple-500/20 transition-colors border border-blue-500/20"
               >
                 <Timer className="w-3.5 h-3.5" />
-                <span>Timer</span>
+                <span className="hidden sm:inline">Timer</span>
               </button>
+            ) : (
+              /* Placeholder pra manter o grid alinhado quando não é hoje */
+              <div />
             )}
+
             <button
               onClick={() => onAdjustTime(name, 30)}
-              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors"
+              className="px-2 py-1.5 text-xs font-medium bg-[#8b8b8b] text-[#1a1a1a] rounded-md hover:bg-[#a0a0a0] transition-colors text-center"
             >
               +30
             </button>
             <button
               onClick={() => onAdjustTime(name, 45)}
-              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+              className="px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors text-center"
             >
               +45
             </button>
             <button
               onClick={() => onAdjustTime(name, 60)}
-              className="flex-1 min-w-[48px] px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors"
+              className="px-2 py-1.5 text-xs font-medium bg-[#8b8b8b]/20 text-[#8b8b8b] rounded-md hover:bg-[#8b8b8b]/30 transition-colors text-center"
             >
               +1h
             </button>
@@ -181,12 +195,16 @@ function ActivityCard({
         )}
       </div>
 
-      {/* Botão deletar */}
+      {/*
+        Botão deletar
+        MOBILE: sempre visível (opacity-100) — hover não existe em touch
+        DESKTOP: aparece no hover como antes
+      */}
       <button
         onClick={() => onDeleteAll(name)}
-        className="absolute top-3 right-3 p-2 bg-[#1e1e1e]/90 text-[#8b8b8b] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+        className="absolute top-2 right-2 sm:top-3 sm:right-3 p-1.5 sm:p-2 bg-[#1e1e1e]/90 text-[#8b8b8b] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
       >
-        <Trash2 className="w-4 h-4" />
+        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
       </button>
     </motion.div>
   );

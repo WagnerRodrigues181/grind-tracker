@@ -16,10 +16,10 @@ export default function ProductivityDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    // MOBILE: space-y menor em telas pequenas
+    <div className="space-y-4 sm:space-y-6">
       {/* Gráfico de Produtividade Semanal */}
       <WeeklyAreaChart key={refreshKey} />
-
       {/* Tabela de Hábitos */}
       <HabitsTable onActivityAdded={handleActivityAdded} />
     </div>

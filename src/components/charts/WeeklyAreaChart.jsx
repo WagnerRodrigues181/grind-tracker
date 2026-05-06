@@ -136,13 +136,11 @@ export default function WeeklyAreaChart() {
         snapshot.forEach((doc) => {
           const act = doc.data();
 
-          // ✅ CORREÇÃO: Ignora atividades binary e valida minutes
           if (act.type === 'binary') {
             console.log('⏭️ Ignorando atividade binary no gráfico:', act.activity);
             return;
           }
 
-          // ✅ CORREÇÃO: Só soma se minutes for número válido
           if (typeof act.minutes === 'number' && !isNaN(act.minutes)) {
             const currentTotal = dayMap.get(act.date) || 0;
             dayMap.set(act.date, currentTotal + act.minutes);
@@ -159,11 +157,6 @@ export default function WeeklyAreaChart() {
           const mins = dayMap.get(day.date) || 0;
           day.minutes = mins;
           day.hours = Number((mins / 60).toFixed(2));
-        });
-
-        console.log('📊 Dados do gráfico individual atualizados:', {
-          totalMinutes: newData.reduce((sum, d) => sum + d.minutes, 0),
-          days: newData,
         });
 
         setChartData(newData);
@@ -202,11 +195,6 @@ export default function WeeklyAreaChart() {
           };
         });
 
-        console.log('📊 Comparação atualizada:', {
-          user1Total: compData.reduce((sum, d) => sum + d.user1Minutes, 0),
-          user2Total: compData.reduce((sum, d) => sum + d.user2Minutes, 0),
-        });
-
         setComparisonData(compData);
         setLoading(false);
       };
@@ -230,10 +218,7 @@ export default function WeeklyAreaChart() {
 
             snapshot.forEach((doc) => {
               const act = doc.data();
-
-              // ✅ CORREÇÃO: Ignora binary e valida minutes
               if (act.type === 'binary') return;
-
               if (typeof act.minutes === 'number' && !isNaN(act.minutes)) {
                 const currentTotal = dayMap.get(act.date) || 0;
                 dayMap.set(act.date, currentTotal + act.minutes);
@@ -337,7 +322,7 @@ export default function WeeklyAreaChart() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div
-              className="w-2 h-2 rounded-full"
+              className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ backgroundColor: comparisonUsers[0]?.color }}
             ></div>
             <span className="text-primary-third">{comparisonUsers[0]?.name}:</span>
@@ -347,7 +332,7 @@ export default function WeeklyAreaChart() {
           </div>
           <div className="flex items-center gap-2">
             <div
-              className="w-2 h-2 rounded-full"
+              className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ backgroundColor: comparisonUsers[1]?.color }}
             ></div>
             <span className="text-primary-third">{comparisonUsers[1]?.name}:</span>
@@ -370,7 +355,7 @@ export default function WeeklyAreaChart() {
     return (
       <div
         className="card p-8 rounded-xl bg-primary-first/50 border border-primary-accent/10 flex items-center justify-center"
-        style={{ minHeight: '420px' }}
+        style={{ minHeight: '380px' }}
       >
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-accent mx-auto mb-3"></div>
@@ -383,14 +368,18 @@ export default function WeeklyAreaChart() {
   // === RENDER ===
   return (
     <div
-      className="card p-6 md:p-8 rounded-xl shadow-sm bg-primary-first/50 backdrop-blur-sm border border-primary-accent/10 relative overflow-hidden"
-      style={{ minHeight: '420px' }}
+      className="card px-4 py-5 sm:p-6 md:p-8 rounded-xl shadow-sm bg-primary-first/50 backdrop-blur-sm border border-primary-accent/10 relative overflow-hidden"
+      style={{ minHeight: '380px' }}
     >
       <div className={`transition-opacity duration-200 ${loading ? 'opacity-0' : 'opacity-100'}`}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex-1"></div>
-          <div className="text-center flex-1">
+        {/*
+          HEADER DO CARD
+          DESKTOP: 3 colunas (espaço | título centralizado | botão à direita)
+          MOBILE: título em cima, botão abaixo alinhado à direita — evita compressão
+        */}
+        <div className="mb-4 sm:mb-5">
+          {/* Título sempre centralizado */}
+          <div className="text-center">
             <h2
               className="text-xl md:text-2xl font-bold text-[#8b8b8b] tracking-wide"
               style={{
@@ -405,10 +394,12 @@ export default function WeeklyAreaChart() {
               {weekDates.start} - {weekDates.end}
             </p>
           </div>
-          <div className="flex-1 flex justify-end">
+
+          {/* Botão comparar — abaixo do título em mobile, à direita em sm+ */}
+          <div className="flex justify-center sm:justify-end mt-2 sm:-mt-8">
             <button
               onClick={toggleViewMode}
-              className="group relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-third/20 hover:bg-primary-third/30 border border-primary-accent/20 transition-all duration-300"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-third/20 hover:bg-primary-third/30 border border-primary-accent/20 transition-all duration-300 touch-target"
             >
               {viewMode === 'individual' ? (
                 <>
@@ -427,7 +418,7 @@ export default function WeeklyAreaChart() {
 
         {/* Estatísticas */}
         {viewMode === 'individual' ? (
-          <div className="flex justify-center mb-5">
+          <div className="flex justify-center mb-4 sm:mb-5">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary-third/80 backdrop-blur-sm rounded-full border border-primary-accent/20 shadow-sm">
               <span className="text-lg md:text-xl font-bold text-primary-first">{totalHours}h</span>
               <span className="text-xs text-primary-accent/80">
@@ -436,19 +427,20 @@ export default function WeeklyAreaChart() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3 mb-5">
-            <div className="flex flex-wrap justify-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-1.5 bg-primary-third/80 backdrop-blur-sm rounded-full border border-primary-accent/20 shadow-sm">
+          <div className="flex flex-col items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
+            {/* MOBILE: pills empilhadas verticalmente, em sm+ ficam em linha */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-2 px-4 py-1.5 bg-primary-third/80 backdrop-blur-sm rounded-full border border-primary-accent/20 shadow-sm w-full sm:w-auto justify-center">
                 <div
-                  className="w-2 h-2 rounded-full"
+                  className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: comparisonUsers[0]?.color }}
                 ></div>
                 <span className="text-xs text-primary-accent/80">{comparisonUsers[0]?.name}:</span>
                 <span className="text-lg font-bold text-primary-first">{user1Hours}h</span>
               </div>
-              <div className="flex items-center gap-2 px-4 py-1.5 bg-primary-third/80 backdrop-blur-sm rounded-full border border-primary-accent/20 shadow-sm">
+              <div className="flex items-center gap-2 px-4 py-1.5 bg-primary-third/80 backdrop-blur-sm rounded-full border border-primary-accent/20 shadow-sm w-full sm:w-auto justify-center">
                 <div
-                  className="w-2 h-2 rounded-full"
+                  className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: comparisonUsers[1]?.color }}
                 ></div>
                 <span className="text-xs text-primary-accent/80">{comparisonUsers[1]?.name}:</span>
@@ -456,7 +448,7 @@ export default function WeeklyAreaChart() {
               </div>
             </div>
             {difference > 0 && (
-              <p className="text-xs text-primary-accent/60">
+              <p className="text-xs text-primary-accent/60 text-center">
                 <span className="font-semibold text-primary-accent">{leader}</span> está à frente
                 por <span className="font-bold text-green-400">{formatDuration(difference)}</span>
               </p>
@@ -464,11 +456,16 @@ export default function WeeklyAreaChart() {
           </div>
         )}
 
-        {/* Gráfico */}
-        <div style={{ height: '220px' }}>
+        {/*
+          GRÁFICO
+          MOBILE: 180px de altura — suficiente e não toma espaço demais
+          DESKTOP: 220px como era antes
+          left margin negativo maior em mobile para o YAxis não ser cortado
+        */}
+        <div className="h-[180px] sm:h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
             {viewMode === 'individual' ? (
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.35} />
@@ -483,15 +480,16 @@ export default function WeeklyAreaChart() {
                 />
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 12, fill: '#8b8b8b', fontWeight: 500 }}
+                  tick={{ fontSize: 11, fill: '#8b8b8b', fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#8b8b8b' }}
+                  tick={{ fontSize: 10, fill: '#8b8b8b' }}
                   axisLine={false}
                   tickLine={false}
                   domain={[0, 'dataMax + 1']}
+                  width={30}
                 />
                 <Tooltip content={<IndividualTooltip />} />
                 <Area
@@ -500,15 +498,12 @@ export default function WeeklyAreaChart() {
                   stroke="#fbbf24"
                   strokeWidth={2}
                   fill="url(#colorHours)"
-                  dot={{ r: 4, fill: '#fbbf24' }}
-                  activeDot={{ r: 6 }}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
                 />
               </AreaChart>
             ) : (
-              <AreaChart
-                data={comparisonData}
-                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-              >
+              <AreaChart data={comparisonData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorUser1" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={comparisonUsers[0]?.color} stopOpacity={0.4} />
@@ -527,15 +522,16 @@ export default function WeeklyAreaChart() {
                 />
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 12, fill: '#8b8b8b', fontWeight: 500 }}
+                  tick={{ fontSize: 11, fill: '#8b8b8b', fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#8b8b8b' }}
+                  tick={{ fontSize: 10, fill: '#8b8b8b' }}
                   axisLine={false}
                   tickLine={false}
                   domain={[0, 'dataMax + 1']}
+                  width={30}
                 />
                 <Tooltip content={<ComparisonTooltip />} />
                 <Area
@@ -543,14 +539,14 @@ export default function WeeklyAreaChart() {
                   dataKey="user1Hours"
                   stroke={comparisonUsers[0]?.color}
                   fill="url(#colorUser1)"
-                  dot={{ r: 4, fill: comparisonUsers[0]?.color }}
+                  dot={{ r: 3, fill: comparisonUsers[0]?.color }}
                 />
                 <Area
                   type="monotone"
                   dataKey="user2Hours"
                   stroke={comparisonUsers[1]?.color}
                   fill="url(#colorUser2)"
-                  dot={{ r: 4, fill: comparisonUsers[1]?.color }}
+                  dot={{ r: 3, fill: comparisonUsers[1]?.color }}
                 />
               </AreaChart>
             )}
@@ -558,24 +554,24 @@ export default function WeeklyAreaChart() {
         </div>
 
         {/* Navegação */}
-        <div className="flex justify-center gap-3 mt-5">
+        <div className="flex justify-center gap-3 mt-4 sm:mt-5">
           <button
             onClick={handlePreviousWeek}
             disabled={loading}
-            className="p-1.5 rounded-lg hover:bg-primary-accent/10 disabled:opacity-50"
+            className="p-1.5 rounded-lg hover:bg-primary-accent/10 disabled:opacity-50 touch-target"
           >
             <ChevronLeft className="w-4 h-4 text-primary-accent" />
           </button>
           <button
             onClick={handleNextWeek}
             disabled={weekOffset >= 0 || loading}
-            className="p-1.5 rounded-lg hover:bg-primary-accent/10 disabled:opacity-50"
+            className="p-1.5 rounded-lg hover:bg-primary-accent/10 disabled:opacity-50 touch-target"
           >
             <ChevronRight className="w-4 h-4 text-primary-accent" />
           </button>
         </div>
 
-        <p className="text-center text-xs text-primary-accent/50 mt-4 italic">
+        <p className="text-center text-xs text-primary-accent/50 mt-3 sm:mt-4 italic">
           {viewMode === 'individual'
             ? 'Quanto mais alto, mais perto do dever cumprido.'
             : 'A competição nos faz crescer juntos.'}

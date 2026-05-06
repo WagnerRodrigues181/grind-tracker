@@ -5,10 +5,29 @@ import { CSS } from '@dnd-kit/utilities';
 import HabitCell from './HabitCell';
 
 /**
- * Linha individual de hábito (arrastável)
- * ✅ Memoizado - ou seja, só re-renderiza se props mudarem
+ * Linha individual de hábito (arrastável).
+ *
+ * MUDANÇA: recebe `visibleWeek` (array de 7 células da semana atual)
+ * em vez do `calendar` completo. Isso reflete a decisão de exibir
+ * apenas uma semana por vez na tabela.
+ *
+ * @param {string}   habit        - Nome do hábito
+ * @param {Array}    visibleWeek  - Array com 7 objetos { day, belongsTo }
+ * @param {Object}   pulsingDays  - Mapa de células em animação de pulse
+ * @param {Array}    particles    - Array de partículas ativas
+ * @param {Function} onToggleDay  - Callback ao clicar numa célula
+ * @param {Function} onRemove     - Callback ao remover o hábito
+ * @param {Function} isChecked    - Função que retorna bool para cada célula
  */
-function HabitRow({ habit, calendar, pulsingDays, particles, onToggleDay, onRemove, isChecked }) {
+function HabitRow({
+  habit,
+  visibleWeek,
+  pulsingDays,
+  particles,
+  onToggleDay,
+  onRemove,
+  isChecked,
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: habit,
   });
@@ -42,28 +61,27 @@ function HabitRow({ habit, calendar, pulsingDays, particles, onToggleDay, onRemo
         </div>
       </td>
 
-      {/* Dias */}
-      {calendar.weeks.map((week, weekIdx) =>
-        week.map((cellData, dayIdx) => (
-          <HabitCell
-            key={`${weekIdx}-${dayIdx}`}
-            habit={habit}
-            cellData={cellData}
-            weekIdx={weekIdx}
-            dayIdx={dayIdx}
-            pulsingDays={pulsingDays}
-            particles={particles}
-            onToggleDay={onToggleDay}
-            isChecked={isChecked}
-          />
-        ))
-      )}
+      {/* Células dos 7 dias da semana visível */}
+      {visibleWeek.map((cellData, dayIdx) => (
+        <HabitCell
+          key={`${cellData.belongsTo}-${cellData.day}-${dayIdx}`}
+          habit={habit}
+          cellData={cellData}
+          weekIdx={0}
+          dayIdx={dayIdx}
+          pulsingDays={pulsingDays}
+          particles={particles}
+          onToggleDay={onToggleDay}
+          isChecked={isChecked}
+        />
+      ))}
 
       {/* Botão remover */}
-      <td className="sticky right-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 border-l border-[#8b8b8b]/30">
+      <td className="sticky right-0 z-10 bg-[#1a1a1a] hover:bg-[#252525]/40 border-l border-[#8b8b8b]/30 w-8">
         <button
           onClick={() => onRemove(habit)}
           className="p-1 text-red-400 hover:text-red-300 rounded transition-all duration-200 trash-hover"
+          aria-label={`Remover hábito ${habit}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -79,5 +97,5 @@ function HabitRow({ habit, calendar, pulsingDays, particles, onToggleDay, onRemo
   );
 }
 
-// ✅ EXPORTA MEMOIZADO
+// Memoizado: só re-renderiza se as props mudarem
 export default memo(HabitRow);

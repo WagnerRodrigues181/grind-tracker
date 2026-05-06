@@ -15,8 +15,9 @@ export default function Dashboard() {
       <div className="min-h-screen bg-primary-first">
         <Header setShowProfile={setShowProfile} />
 
-        <main className="w-full px-8 py-8">
-          <div className="max-w-[1800px] mx-auto space-y-8">
+        {/* MOBILE: px-3 py-4 | DESKTOP: px-8 py-8 */}
+        <main className="w-full px-3 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
+          <div className="max-w-[1800px] mx-auto space-y-4 sm:space-y-6 md:space-y-8">
             {/* Gráfico Semanal */}
             <div className="w-full">
               <WeeklyAreaChart />
@@ -40,11 +41,15 @@ export default function Dashboard() {
       {/* Modal do Perfil */}
       {showProfile && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4 py-8 bg-black/60 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setShowProfile(false)}
         >
+          {/*
+            MOBILE: sem scale-90 (some da tela), padding lateral, alinha ao topo com margem
+            DESKTOP: mantém comportamento centralizado com max-w-lg
+          */}
           <div
-            className="relative w-full max-w-lg transform scale-90 origin-center"
+            className="relative w-full max-w-lg mx-auto my-4 px-3 sm:px-0 sm:transform sm:scale-90 sm:origin-center"
             onClick={(e) => e.stopPropagation()}
           >
             <ProfileCard onClose={() => setShowProfile(false)} />
