@@ -6,7 +6,7 @@
 Um **app de tracking de hábitos** construído com **vibe de meme, mas com execução de titânio**.
 Nascido da necessidade real que **eu (Wagner)** e do meu brother **Marlon** temos de **disciplina** e pra **acompanhar o grind diário**, organizando nosso tempo com precisão cirúrgica.
 > **"Se não tá no Firestore, não aconteceu."** – Giga Chad, provavelmente.
-Apresentei a ideia pro Marlon, ele **curtiu na hora**, e o que começou como uma brincadeira virou uma **competição saudável** pra ver quem **grinda mais, reza mais, treina mais, estuda mais**.
+Apresentei a ideia pro Marlon, ele **curtiu na hora**, e o que começou como uma brincadeira virou uma **competição saudável** pra ver quem **grinda mais, treina mais, estuda mais**.
 E sim: **os memes são o combustível**.
 O **Giga Chad** é o ícone oficial.
 E o **"based"** é o padrão.
@@ -35,9 +35,6 @@ E o **"based"** é o padrão.
 - [x] Projeto criado: `grind-tracker-86e24`
 - [x] Auth com Email/Senha
 - [x] Firestore + Regras de segurança
-- [x] Contas criadas:
-  - `email@grindtracker.com`
-  - Senha: `************`
 ### ✅ **FASE 3: Sistema de Login** 🔐
 - [x] Página de login
 - [x] Proteção de rotas
@@ -65,6 +62,13 @@ E o **"based"** é o padrão.
 ### 🚀 **FASE 8: Deploy**
 - [x] Build de produção
 - [x] Deploy no **Firebase Hosting**
+### ✅ **FASE 9: Responsividade Mobile** 📱
+- [x] Layout adaptativo para todos os tamanhos de tela
+- [x] Navegação otimizada para toque
+- [x] Grid de hábitos responsivo com scroll horizontal suave
+- [x] Gráfico semanal adaptado para mobile
+- [x] Cards e componentes reestilizados para viewports pequenas
+- [x] Experiência consistente entre desktop e mobile
 ---
 <img width="1874" height="967" alt="ProfileCard1" src="https://github.com/user-attachments/assets/82b2d00e-3d46-434d-95d0-67550d093f3b" />
 
@@ -105,7 +109,6 @@ Quer entrar no grind?
 ---
 ## 🛡 **Licença**
 **MIT** – Use, modifique, melhore.
-Mas se for fraco, não reclama.
 ---
 ## 🗿 **"Yes, Chad?"**
 **Sim, Chad.**
