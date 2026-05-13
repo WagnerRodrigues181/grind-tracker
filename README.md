@@ -13,7 +13,7 @@ E o **"based"** é o padrão.
 ---
 <img width="1891" height="964" alt="home1" src="https://github.com/user-attachments/assets/20b31cca-1932-450b-98c5-ca54a59cadc2" />
 
-## 🛠 **Stack Completa** *(como no VS Code, mas melhor)*
+## 🛠 **Stack Completa**
 | Ícone | Tecnologia | Por quê? |
 |------|------------|--------|
 | ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black) | **React + Vite** | Rápido, moderno, zero enrolação |
